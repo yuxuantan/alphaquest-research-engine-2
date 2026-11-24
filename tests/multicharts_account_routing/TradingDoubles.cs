@@ -3,6 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+namespace System.Windows.Forms
+{
+    [Flags]
+    public enum Keys { None = 0, ControlKey = 17, LControlKey = 162, RControlKey = 163,
+        KeyCode = 65535, Control = 131072 }
+    public enum MouseButtons { Left, Right }
+}
+
 namespace ATCenterProxy.interop
 {
     public enum MTPA_OrdrActn { eMTPA_OA_Buy, eMTPA_OA_Sell }
@@ -24,26 +32,26 @@ namespace PowerLanguage.Function
         protected virtual void Destroy() {}
     }
 
-    internal sealed class FollowerToolbar : IDisposable
+    internal sealed class FollowerAccountsWindow : IDisposable
     {
         private readonly Action<int, bool, FollowerRoute[]> request;
         private readonly PowerLanguage.Strategy.SignalObject owner;
         private int requestId;
         public FollowerPickerState Latest;
-        public int InitialCount;
+        public int Opens;
 
-        public FollowerToolbar(PowerLanguage.Strategy.SignalObject owner, int count,
+        public FollowerAccountsWindow(PowerLanguage.Strategy.SignalObject owner,
             Action<int, bool, FollowerRoute[]> request)
         {
             this.owner = owner;
             this.request = request;
-            InitialCount = count;
-            owner.FollowerToolbar = this;
+            owner.FollowerWindow = this;
         }
 
+        public void Open() { ++Opens; Submit(false, null); }
         public void Submit(bool save, FollowerRoute[] selection) { request(++requestId, save, selection); }
         public void Receive(FollowerPickerState state) { Latest = state; }
-        public void Dispose() { if (owner.FollowerToolbar == this) owner.FollowerToolbar = null; }
+        public void Dispose() { if (owner.FollowerWindow == this) owner.FollowerWindow = null; }
     }
 }
 

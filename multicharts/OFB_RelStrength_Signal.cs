@@ -9,6 +9,7 @@ namespace PowerLanguage.Strategy
 {
     // Apply to Data1 NQ (or MNQ), Data2 ES. Both use one-minute, close-stamped
     // Globex bars on the Exchange (Central) clock. Use one bar of MaxBarsBack.
+    [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     public class OFB_RelStrength_Signal : SignalObject
     {
@@ -105,7 +106,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
-            multiAccount.StartPicker(this, MultiAccountFollowers);
+            multiAccount.StartPicker(this);
             while (drawings.Count > 0) drawings.Dequeue()();
             lastBar = rangeIndex = rangeCount = previousSide = entriesToday = samples = barsSinceAnchor = 0;
             alignmentLogs = 0;
@@ -181,6 +182,11 @@ namespace PowerLanguage.Strategy
                 beta = covariance / esSecondMoment;
                 residualVariance = nqSecondMoment - 2 * beta * covariance + (beta * beta) * esSecondMoment;
             }
+        }
+
+        protected override void OnMouseEvent(MouseClickArgs args)
+        {
+            if (!multiAccount.OpenPicker(args)) base.OnMouseEvent(args);
         }
 
         protected override void CalcBar()

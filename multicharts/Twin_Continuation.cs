@@ -740,6 +740,7 @@ namespace PowerLanguage.Strategy
 {
     // Add as a SIGNAL named Twin_Continuation; Data1 1 minute, Chicago time.
     // Manual Max Bars Back = 5; IOG off; no pyramiding. See strategy guide.
+    [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     [RecoverDrawings(false)]
     public class Twin_Continuation : SignalObject
@@ -855,7 +856,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
-            multiAccount.StartPicker(this, MultiAccountFollowers);
+            multiAccount.StartPicker(this);
             lastProcessedBar=-1;
             protectionSetup=null;
             validationReplay=ShowTradeValidation ? new AlphaQuest.Twin.ValidationReplay() : null;
@@ -979,6 +980,11 @@ namespace PowerLanguage.Strategy
             lastEntrySignature = AlphaQuest.Twin.ValidationText.EntrySignature(core, orders);
             previousValidationPosition = position;
             previousValidationTrades = TotalTrades;
+        }
+
+        protected override void OnMouseEvent(MouseClickArgs args)
+        {
+            if (!multiAccount.OpenPicker(args)) base.OnMouseEvent(args);
         }
 
         protected override void CalcBar()

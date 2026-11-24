@@ -7,6 +7,7 @@ using PowerLanguage.Function;
 
 namespace PowerLanguage.Strategy
 {
+    [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     public class OFB_OvernightBiasORB_Signal : SignalObject
     {
@@ -91,7 +92,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
-            multiAccount.StartPicker(this, MultiAccountFollowers);
+            multiAccount.StartPicker(this);
             while (validationEventDeletes.Count > 0) validationEventDeletes.Dequeue()();
             if (validationPanel != null) { validationPanel.Delete(); validationPanel = null; }
             observedPosition = 0;
@@ -147,6 +148,11 @@ namespace PowerLanguage.Strategy
                 atrReference /= ATR_Days;
             }
             ResetDay(high, low);
+        }
+
+        protected override void OnMouseEvent(MouseClickArgs args)
+        {
+            if (!multiAccount.OpenPicker(args)) base.OnMouseEvent(args);
         }
 
         protected override void CalcBar()

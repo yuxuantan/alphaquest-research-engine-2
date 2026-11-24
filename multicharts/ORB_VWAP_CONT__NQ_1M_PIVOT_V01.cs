@@ -18,6 +18,7 @@ namespace PowerLanguage.Strategy
     // Calendar-enabled defaults require NQ, Central-time 1-minute bars, full session.
     // VWAP uses Bars.Ticks, matching the original Ticks expression.
     // Stops/targets are submitted only once a position is observed, as in source.
+    [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     public class ORB_VWAP_CONT__NQ_1M_PIVOT_V01 : SignalObject
     {
@@ -171,7 +172,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
-            multiAccount.StartPicker(this, MultiAccountFollowers);
+            multiAccount.StartPicker(this);
             ClearValidation();
             _lastCalculatedBar = -1;
             if (ShowTradeValidation && ValidationHistoryBars < 1)
@@ -228,6 +229,11 @@ namespace PowerLanguage.Strategy
             if (PlotTradeLevels)
                 Output.WriteLine("VWAP Pullback: tickSize={0}, BigPointValue={1}, riskBudget={2:F2}",
                     _tickSize, _pointValue, _riskDollars);
+        }
+
+        protected override void OnMouseEvent(MouseClickArgs args)
+        {
+            if (!multiAccount.OpenPicker(args)) base.OnMouseEvent(args);
         }
 
         protected override void CalcBar()

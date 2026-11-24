@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Windows.Forms;
 
 namespace PowerLanguage
 {
     public enum IOGMode { Disabled }
     public sealed class IOGModeAttribute : Attribute { public IOGModeAttribute(IOGMode mode) {} }
     public sealed class InputAttribute : Attribute {}
+    public sealed class MouseEventsAttribute : Attribute {}
     public enum EOrderAction { Buy, SellShort, Sell, BuyToCover }
     public enum EBarState { Close, Open }
     public enum ESpecOrdersMode { PerPosition, PerContract }
@@ -128,6 +130,7 @@ namespace PowerLanguage
         public void WriteLine(string format, params object[] args) { Written.Add(string.Format(CultureInfo.InvariantCulture,format,args)); }
     }
     public class CStudyControl {}
+    public struct MouseClickArgs { public Keys keys; public MouseButtons buttons; }
     public enum EApplicationCode { Unknown, Charting, Scanner, Portfolio }
     public enum CalculationReason { Default, Timer, LeftMouseClick, RightMouseClick }
     public sealed class CalculationEnvironment
@@ -149,7 +152,7 @@ namespace PowerLanguage.Strategy
         protected SignalObject(object ctx) {}
         public string Profile, Account;
         public string PersistData;
-        internal PowerLanguage.Function.FollowerToolbar FollowerToolbar;
+        internal PowerLanguage.Function.FollowerAccountsWindow FollowerWindow;
         public PowerLanguage.TradeManager.ITradeManager TradeManager;
         public readonly CalculationEnvironment Environment = new CalculationEnvironment();
         public readonly CalculationControl ExecControl = new CalculationControl();
@@ -168,9 +171,11 @@ namespace PowerLanguage.Strategy
         protected void GenerateProfitTarget(double amount) { LastProfitTarget = amount; }
         protected void GenerateExitOnClose() { SessionExitCalls++; }
         protected abstract void Create(); protected abstract void StartCalc(); protected abstract void CalcBar();
+        protected virtual void OnMouseEvent(MouseClickArgs args) {}
         public void Initialize() { Create(); StartCalc(); }
         public void Restart() { StartCalc(); }
         public void Calculate() { CalcBar(); }
+        public void Click(MouseClickArgs args) { OnMouseEvent(args); }
     }
 }
 namespace PowerLanguage.Function

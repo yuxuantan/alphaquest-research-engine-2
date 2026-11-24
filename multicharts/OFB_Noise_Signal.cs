@@ -7,6 +7,7 @@ using PowerLanguage.Function;
 
 namespace PowerLanguage.Strategy
 {
+    [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     public class OFB_Noise_Signal : SignalObject
     {
@@ -85,7 +86,7 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
-            multiAccount.StartPicker(this, MultiAccountFollowers);
+            multiAccount.StartPicker(this);
             while (drawingDeletes.Count > 0) drawingDeletes.Dequeue()();
             if (validationPanel != null) { validationPanel.Delete(); validationPanel = null; }
             if (Bars.Info.Resolution.Type != EResolution.Minute || Bars.Info.Resolution.Size != 15)
@@ -121,6 +122,11 @@ namespace PowerLanguage.Strategy
         private static int Minutes(int hhmm)
         {
             return hhmm / 100 * 60 + hhmm % 100;
+        }
+
+        protected override void OnMouseEvent(MouseClickArgs args)
+        {
+            if (!multiAccount.OpenPicker(args)) base.OnMouseEvent(args);
         }
 
         protected override void CalcBar()

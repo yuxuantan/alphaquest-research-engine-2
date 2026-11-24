@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Windows.Forms;
 using ATCenterProxy.interop;
 using PowerLanguage.Strategy;
 using PowerLanguage.TradeManager;
@@ -9,7 +10,6 @@ using BrokerOrder = PowerLanguage.TradeManager.Order;
 using BrokerPosition = PowerLanguage.TradeManager.Position;
 #if !AQ_ROUTING_TEST
 using System.Drawing;
-using System.Windows.Forms;
 #endif
 
 namespace PowerLanguage.Function
@@ -28,11 +28,27 @@ namespace PowerLanguage.Function
 
         protected override int CalcBar() { return 0; }
 
-        public void StartPicker(SignalObject owner, string destinations)
+        public void StartPicker(SignalObject owner)
         {
             StopPicker();
             if (owner.Environment.ApplicationCode == EApplicationCode.Charting && !owner.Environment.Optimizing)
-                picker = new FollowerPicker(owner, destinations);
+            {
+                try { picker = new FollowerPicker(owner); }
+                catch (Exception ex)
+                {
+                    owner.Output.WriteLine("Follower Accounts could not initialize: {0}", ex.Message);
+                }
+            }
+        }
+
+        public bool OpenPicker(MouseClickArgs args)
+        {
+            if (picker == null || args.buttons != MouseButtons.Left) return false;
+            Keys key = args.keys & Keys.KeyCode;
+            bool control = key == Keys.ControlKey || key == Keys.LControlKey || key == Keys.RControlKey ||
+                (args.keys & Keys.Control) == Keys.Control;
+            if (control) picker.Open();
+            return control;
         }
 
         protected override void StopCalc()
@@ -111,8 +127,10 @@ namespace PowerLanguage.Function
             if (!string.IsNullOrEmpty(owner.PersistData) &&
                 !FollowerSelection.TryRead(owner.PersistData, out previous))
                 throw new InvalidOperationException("This signal already uses workspace storage for other data.");
+            string profile = owner.Profile, account = owner.Account;
             bool replaceRouter = router != null && (destinations != configuredDestinations ||
-                owner.Profile != configuredProfile || owner.Account != configuredAccount);
+                (!string.IsNullOrWhiteSpace(profile) && profile != configuredProfile) ||
+                (!string.IsNullOrWhiteSpace(account) && account != configuredAccount));
             if (replaceRouter) router.RequireIdleForReconfiguration();
             owner.PersistData = FollowerSelection.Encode(destinations);
             if (replaceRouter)
@@ -751,14 +769,17 @@ namespace PowerLanguage.Function
         public static FollowerRoute[] Parse(string destinations, string primaryAccount)
         {
             if (string.IsNullOrWhiteSpace(destinations)) return new FollowerRoute[0];
-            var accounts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { primaryAccount };
+            var accounts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var routes = new List<FollowerRoute>();
             foreach (string destination in destinations.Split(';'))
             {
                 string[] fields = destination.Split('|').Select(field => field.Trim()).ToArray();
-                if ((fields.Length != 2 && fields.Length != 3) || fields.Any(string.IsNullOrEmpty) ||
-                    !accounts.Add(fields[1]))
-                    throw new ArgumentException("Use unique follower accounts as Profile|Account[|BrokerSymbol] separated by semicolons. Exclude the primary account.");
+                if ((fields.Length != 2 && fields.Length != 3) || fields.Any(string.IsNullOrEmpty))
+                    throw new ArgumentException("Use Profile|Account[|BrokerSymbol] separated by semicolons.");
+                if (string.Equals(fields[1], primaryAccount, StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException("Remove the primary account " + primaryAccount + " from Follower Accounts.");
+                if (!accounts.Add(fields[1]))
+                    throw new ArgumentException("Choose one profile for each follower account ID.");
                 routes.Add(new FollowerRoute(fields[0], fields[1], fields.Length == 3 ? fields[2] : null));
             }
             return routes.ToArray();
@@ -835,21 +856,25 @@ namespace PowerLanguage.Function
         }
 
         private readonly SignalObject owner;
-        private readonly FollowerToolbar toolbar;
+        private readonly FollowerAccountsWindow window;
         private readonly Action<TimeSpan> schedule;
         private Request pending;
         private volatile bool disposed;
 
-        public FollowerPicker(SignalObject owner, string fallback)
+        public FollowerPicker(SignalObject owner)
         {
             this.owner = owner;
             schedule = owner.ExecControl.RecalcLastBarAfter;
-            string saved;
-            if (!FollowerSelection.TryRead(owner.PersistData, out saved)) saved = fallback;
-            int count;
-            try { count = FollowerRoute.Parse(saved, owner.Account).Length; }
-            catch (ArgumentException) { count = 0; }
-            toolbar = new FollowerToolbar(owner, count, Enqueue);
+            window = new FollowerAccountsWindow(owner, Enqueue);
+        }
+
+        public void Open()
+        {
+            try { window.Open(); }
+            catch (Exception ex)
+            {
+                owner.Output.WriteLine("Follower Accounts could not open: {0}", ex.Message);
+            }
         }
 
         private void Enqueue(int id, bool save, FollowerRoute[] selection)
@@ -879,9 +904,9 @@ namespace PowerLanguage.Function
             {
                 state.PrimaryProfile = owner.Profile;
                 state.PrimaryAccount = owner.Account;
-                state.Editable = !owner.Environment.IsAutoTradingMode &&
-                    !string.IsNullOrWhiteSpace(state.PrimaryProfile) &&
-                    !string.IsNullOrWhiteSpace(state.PrimaryAccount);
+                // Editing must work even if the host doesn't report the primary while stopped.
+                // The router checks the actual primary before enabling follower orders.
+                state.Editable = !owner.Environment.IsAutoTradingMode;
                 string saved;
                 if (!FollowerSelection.TryRead(owner.PersistData, out saved)) saved = fallback;
                 // A previously configured account may now be the primary. Keep
@@ -894,9 +919,7 @@ namespace PowerLanguage.Function
                 if (request.Save)
                 {
                     if (!state.Editable)
-                        throw new InvalidOperationException(owner.Environment.IsAutoTradingMode
-                            ? "Turn off Auto Trading to change followers."
-                            : "Select the primary account in Strategy Properties → Auto Trading.");
+                        throw new InvalidOperationException("Turn off Auto Trading to change followers.");
                     string destinations = string.Join(";", state.Draft.Select(route => route.ToString()));
                     FollowerRoute[] selected = FollowerRoute.Parse(destinations, state.PrimaryAccount);
                     FollowerSelection.RequireAvailable(selected, state.Available);
@@ -907,8 +930,6 @@ namespace PowerLanguage.Function
                 }
                 else if (owner.Environment.IsAutoTradingMode)
                     state.Message = "Turn off Auto Trading to change followers.";
-                else if (!state.Editable)
-                    state.Message = "Select the primary account in Strategy Properties → Auto Trading.";
             }
             catch (Exception ex)
             {
@@ -916,70 +937,164 @@ namespace PowerLanguage.Function
                 if (!request.Save) state.Editable = false;
             }
             if (state.Draft == null) state.Draft = state.Saved;
-            toolbar.Receive(state);
+            window.Receive(state);
         }
 
         public void Dispose()
         {
             disposed = true;
             Interlocked.Exchange(ref pending, null);
-            toolbar.Dispose();
+            window.Dispose();
         }
     }
 
 #if !AQ_ROUTING_TEST
-    internal sealed class FollowerToolbar : IDisposable
+    internal sealed class FollowerAccountsWindow : IDisposable
     {
-        private readonly ICustomToolBar host;
+        private sealed class ChartWindow : IWin32Window
+        {
+            public ChartWindow(IntPtr handle) { Handle = handle; }
+            public IntPtr Handle { get; private set; }
+        }
+
+        private readonly object gate = new object();
+        private readonly string signalName;
+        private readonly IntPtr chartHandle;
         private readonly Action<int, bool, FollowerRoute[]> request;
-        private ToolStripDropDownButton button;
-        private ToolStripDropDown popup;
+        private AccountsDialog dialog;
+        private int nextRequestId;
+        private bool running, disposed;
+
+        public FollowerAccountsWindow(SignalObject owner, Action<int, bool, FollowerRoute[]> request)
+        {
+            this.request = request;
+            signalName = owner.GetType().Name;
+            chartHandle = owner.Environment.ChartWindowHWND;
+        }
+
+        public void Open()
+        {
+            lock (gate)
+            {
+                if (disposed) return;
+                if (running)
+                {
+                    Post(dialog, form => form.Activate());
+                    return;
+                }
+
+                var thread = new Thread(Run) { IsBackground = true, Name = "AlphaQuest Follower Accounts" };
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.Start();
+                running = true;
+            }
+        }
+
+        private void Run()
+        {
+            try
+            {
+                using (var form = new AccountsDialog(signalName, request, () => Interlocked.Increment(ref nextRequestId)))
+                {
+                    lock (gate)
+                    {
+                        if (disposed) return;
+                        dialog = form;
+                        // Make a handle before publishing the dialog to other threads.
+                        var handle = form.Handle;
+                    }
+                    if (chartHandle == IntPtr.Zero)
+                    {
+                        form.StartPosition = FormStartPosition.CenterScreen;
+                        form.Show();
+                    }
+                    else form.Show(new ChartWindow(chartHandle));
+                    Application.Run(form);
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (gate)
+                {
+                    if (disposed) return;
+                }
+                MessageBox.Show(ex.Message, "Follower Accounts");
+            }
+            finally
+            {
+                lock (gate)
+                {
+                    dialog = null;
+                    running = false;
+                }
+            }
+        }
+
+        public void Receive(FollowerPickerState result)
+        {
+            lock (gate)
+            {
+                if (!disposed) Post(dialog, form => form.Receive(result));
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (gate)
+            {
+                disposed = true;
+                Post(dialog, form => form.CloseForStudy());
+            }
+        }
+
+        private static void Post(AccountsDialog form, Action<AccountsDialog> action)
+        {
+            if (form == null) return;
+            try { form.BeginInvoke((MethodInvoker)(() => action(form))); }
+            catch (InvalidOperationException) { } // The dialog was closed while the request was in flight.
+        }
+    }
+
+    internal sealed class AccountsDialog : Form
+    {
+        private readonly Action<int, bool, FollowerRoute[]> request;
+        private readonly Func<int> allocateRequestId;
         private ListView accounts;
         private Label primary, status;
         private Button refresh, cancel, save;
         private FollowerPickerState state;
         private int requestId;
         private bool updating, loading, saving;
-        private volatile bool disposed;
 
-        public FollowerToolbar(SignalObject owner, int count, Action<int, bool, FollowerRoute[]> request)
+        public AccountsDialog(string signalName, Action<int, bool, FollowerRoute[]> request, Func<int> allocateRequestId)
         {
             this.request = request;
-            host = owner.ChartToolBar;
-            if (host == null) return;
-            host.AccessToolBarAsync(toolBar =>
-            {
-                if (disposed) return;
-                button = new ToolStripDropDownButton(Caption(count))
-                {
-                    ToolTipText = "Choose follower accounts for " + owner.GetType().Name
-                };
-                popup = new ToolStripDropDown();
-                Control panel = BuildPanel();
-                popup.Items.Add(new ToolStripControlHost(panel) { AutoSize = false, Size = panel.Size,
-                    Margin = Padding.Empty, Padding = Padding.Empty });
-                button.DropDown = popup;
-                button.DropDownOpening += delegate
-                {
-                    state = null;
-                    accounts.Items.Clear();
-                    primary.Text = "Loading connected accounts…";
-                    Request(false, null);
-                };
-                popup.Closing += (sender, args) =>
-                {
-                    if (args.CloseReason == ToolStripDropDownCloseReason.ItemClicked ||
-                        (saving && args.CloseReason != ToolStripDropDownCloseReason.CloseCalled))
-                        args.Cancel = true;
-                };
-                toolBar.Items.Add(button);
-                host.Visible = true;
-            });
+            this.allocateRequestId = allocateRequestId;
+            Text = "Follower Accounts — " + signalName;
+            AutoScaleMode = AutoScaleMode.Dpi;
+            ClientSize = new Size(520, 408);
+            MinimumSize = new Size(460, 280);
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            Controls.Add(BuildPanel());
+            Shown += delegate { Request(false, null); };
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs args)
+        {
+            if (saving && args.CloseReason == CloseReason.UserClosing) args.Cancel = true;
+            base.OnFormClosing(args);
+        }
+
+        public void CloseForStudy()
+        {
+            saving = false;
+            Close();
         }
 
         private Control BuildPanel()
         {
-            var panel = new TableLayoutPanel { Width = 435, Height = 354, Padding = new Padding(10),
+            var panel = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
                 RowCount = 4, ColumnCount = 1, AutoSize = false };
             panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -988,7 +1103,7 @@ namespace PowerLanguage.Function
             primary = new Label { AutoSize = true, Margin = new Padding(3, 3, 3, 8) };
             accounts = new ListView { View = View.Details, CheckBoxes = true, FullRowSelect = true, Dock = DockStyle.Fill,
                 HideSelection = false, HeaderStyle = ColumnHeaderStyle.Nonclickable, AccessibleName = "Follower accounts" };
-            accounts.Columns.Add("Account", 225);
+            accounts.Columns.Add("Account", 290);
             accounts.Columns.Add("Availability", 145);
             accounts.ItemChecked += delegate { if (!updating) ShowSelection(); };
             status = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
@@ -996,7 +1111,8 @@ namespace PowerLanguage.Function
             cancel = new Button { Text = "Cancel", AutoSize = true };
             save = new Button { AutoSize = true };
             refresh.Click += delegate { Request(false, state == null ? null : Selected()); };
-            cancel.Click += delegate { popup.Close(); };
+            cancel.Click += delegate { Close(); };
+            CancelButton = cancel;
             save.Click += delegate { Request(true, Selected()); };
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
             actions.Controls.Add(save);
@@ -1007,11 +1123,6 @@ namespace PowerLanguage.Function
             panel.Controls.Add(status, 0, 2);
             panel.Controls.Add(actions, 0, 3);
             return panel;
-        }
-
-        private static string Caption(int count)
-        {
-            return count == 0 ? "Follower Accounts" : "Follower Accounts (" + count + ")";
         }
 
         private FollowerRoute[] Selected()
@@ -1026,7 +1137,11 @@ namespace PowerLanguage.Function
             status.Text = persist ? "Checking and saving followers…" : "Checking broker profiles…";
             accounts.Enabled = refresh.Enabled = save.Enabled = false;
             cancel.Enabled = !persist;
-            try { request(++requestId, persist, selection); }
+            try
+            {
+                requestId = allocateRequestId();
+                request(requestId, persist, selection);
+            }
             catch (Exception ex)
             {
                 loading = saving = false;
@@ -1037,47 +1152,42 @@ namespace PowerLanguage.Function
 
         public void Receive(FollowerPickerState result)
         {
-            if (host == null || disposed) return;
-            host.AccessToolBarAsync(toolBar =>
+            if (IsDisposed || result.RequestId != requestId) return;
+            loading = saving = false;
+            if (result.Applied)
             {
-                if (disposed || button == null || result.RequestId != requestId) return;
-                loading = saving = false;
-                button.Text = Caption(result.Saved.Length);
-                if (!popup.Visible) return;
-                if (result.Applied)
-                {
-                    popup.Close();
-                    return;
-                }
-                state = result;
-                primary.Text = string.IsNullOrEmpty(result.PrimaryAccount)
-                    ? "Primary account: select in Strategy Properties"
-                    : "Primary: " + result.PrimaryAccount + " · " + result.PrimaryProfile;
+                Close();
+                return;
+            }
+            state = result;
+            primary.Text = string.IsNullOrWhiteSpace(result.PrimaryAccount)
+                ? "Primary: checked when Auto Trading starts. Choose only followers here."
+                : "Primary: " + result.PrimaryAccount +
+                    (string.IsNullOrWhiteSpace(result.PrimaryProfile) ? "" : " · " + result.PrimaryProfile);
 
-                updating = true;
-                accounts.BeginUpdate();
-                accounts.Items.Clear();
-                accounts.Groups.Clear();
-                var chosen = result.Draft.ToDictionary(route => route.Key, StringComparer.Ordinal);
-                var available = new HashSet<string>(result.Available.Select(route => route.Key), StringComparer.Ordinal);
-                var rows = result.Available.Where(route => !chosen.ContainsKey(route.Key)).Concat(result.Draft)
-                    .OrderBy(route => route.Account, StringComparer.OrdinalIgnoreCase);
-                foreach (var group in rows.GroupBy(route => route.Profile).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+            updating = true;
+            accounts.BeginUpdate();
+            accounts.Items.Clear();
+            accounts.Groups.Clear();
+            var chosen = result.Draft.ToDictionary(route => route.Key, StringComparer.Ordinal);
+            var available = new HashSet<string>(result.Available.Select(route => route.Key), StringComparer.Ordinal);
+            var rows = result.Available.Where(route => !chosen.ContainsKey(route.Key)).Concat(result.Draft)
+                .OrderBy(route => route.Account, StringComparer.OrdinalIgnoreCase);
+            foreach (var group in rows.GroupBy(route => route.Profile).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var header = new ListViewGroup(group.Key);
+                accounts.Groups.Add(header);
+                foreach (FollowerRoute route in group)
                 {
-                    var header = new ListViewGroup(group.Key);
-                    accounts.Groups.Add(header);
-                    foreach (FollowerRoute route in group)
-                    {
-                        var row = new ListViewItem(route.Account, header) { Tag = route };
-                        row.SubItems.Add(available.Contains(route.Key) ? "Connected" : "Unavailable");
-                        accounts.Items.Add(row);
-                        row.Checked = chosen.ContainsKey(route.Key);
-                    }
+                    var row = new ListViewItem(route.Account, header) { Tag = route };
+                    row.SubItems.Add(available.Contains(route.Key) ? "Connected" : "Unavailable");
+                    accounts.Items.Add(row);
+                    row.Checked = chosen.ContainsKey(route.Key);
                 }
-                accounts.EndUpdate();
-                updating = false;
-                ShowSelection();
-            });
+            }
+            accounts.EndUpdate();
+            updating = false;
+            ShowSelection();
         }
 
         private void ShowSelection()
@@ -1098,23 +1208,6 @@ namespace PowerLanguage.Function
                 selected.Length + " selected · " + (selected.Length + 1) + " accounts including the primary";
         }
 
-        public void Dispose()
-        {
-            disposed = true;
-            if (host == null) return;
-            try
-            {
-                host.AccessToolBarAsync(toolBar =>
-                {
-                    if (button == null) return;
-                    toolBar.Items.Remove(button);
-                    popup.Dispose();
-                    button.Dispose();
-                    if (toolBar.Items.Count == 0) host.Visible = false;
-                });
-            }
-            catch (ObjectDisposedException) { }
-        }
     }
 #endif
 }

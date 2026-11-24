@@ -2,8 +2,9 @@
 
 ## One chart with multiple broker accounts
 
-All five signals expose a **Follower Accounts** dropdown on the chart. Select
-any number of accounts from the connected broker profiles. The account in
+All five signals open a **Follower Accounts** dialog when you hold **Ctrl**
+and left-click the plot area of the chart. Select any number of accounts from
+the connected broker profiles. The account in
 **Strategy Properties → Auto Trading** drives the strategy decisions. Each
 follower has its own order and fill tracking through MultiCharts .NET
 `TradeManager`.
@@ -12,17 +13,23 @@ follower has its own order and fill tracking through MultiCharts .NET
    `AQMultiAccountRouting`, replace its source with
    [AQMultiAccountRouting.cs](AQMultiAccountRouting.cs), and compile. Then
    compile the updated signal you want to run. Re-add it to the chart so it
-   loads the updated function. [MultiCharts .NET function references and reloads](https://www.multicharts.com/discussion/viewtopic.php?f=19&t=45848)
+   loads the updated function. If MultiCharts disabled the study after a
+   toolbar error, set its **Status** to **On** in **Format Signals** with
+   Auto Trading off. [MultiCharts .NET function references and reloads](https://www.multicharts.com/discussion/viewtopic.php?f=19&t=45848)
 2. For a paper check, connect a Paper Trader profile with three flat accounts,
    for example a profile named `Paper Trader Test` with accounts `SIM-A`,
    `SIM-B` and `SIM-C`. Use the chart's data source in the paper profile and a
    tradable dated futures contract. Select `SIM-A` in the chart's Auto Trading
    properties. Clear **Require Order Confirmation** for the paper run.
    [Paper Trader setup](https://www.multicharts.com/trading-software/index.php?title=Paper_Trader)
-3. With Auto Trading off, open **Follower Accounts** on the chart. The primary
-   appears above the scrollable checklist. Check `SIM-B` and `SIM-C` and
+3. With Auto Trading off, **Ctrl+left-click** inside the chart to open
+   **Follower Accounts**. The primary appears above the scrollable checklist
+   when MultiCharts exposes it. If the picker says it will check the primary
+   at startup, select only the followers. The router checks the chart's actual
+   primary when Auto Trading starts and rejects a selection that includes it.
+   Check `SIM-B` and `SIM-C` and
    verify that the count shows **2 selected · 3 accounts including the
-   primary**. Select **Save 2 followers**. Reopen the dropdown and confirm both
+   primary**. Select **Save 2 followers**. Reopen the dialog and confirm both
    accounts are checked. Save the MultiCharts workspace to keep this
    selection on this signal after reopening it.
 4. For an availability check, disconnect the paper profile or remove a paper
@@ -83,7 +90,7 @@ They exercise multiple profiles and accounts, partial fills, OCO order
 requests, cancel acknowledgements, rejection isolation and callbacks using
 test doubles. Picker cases cover a dynamic inventory, unavailable accounts,
 workspace reload and attempts to change a route with Auto Trading on or with
-outstanding orders. Confirm the toolbar, workspace reopen and paper fills in
+outstanding orders. Confirm the dialog, workspace reopen and paper fills in
 the MultiCharts host using the steps above.
 
 ## Signal setup
