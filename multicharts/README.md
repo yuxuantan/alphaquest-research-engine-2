@@ -56,14 +56,40 @@ empty selection. The picker carries forward an existing optional broker
 symbol suffix such as `Other Profile|SIM-C|MNQZ6`. Configure order mapping in
 MultiCharts' **Symbol Mapping** for that broker.
 
-Use each follower account exclusively for the running signal while this mode
-is enabled. The router halts one follower on unexpected outside orders,
-unconfirmed status or connection loss and logs the account. Other accounts
-can continue. A failed account can still have positions or working orders.
-Review it in the broker tracker before restarting. Flatten and confirm that
-all working orders have cleared before disabling automation, removing the
-signal or changing account lists. Unmanaged orders can remain working after
-the chart stops.
+### Share a follower across strategies
+
+On each chart in the same MultiCharts .NET instance, select the same follower
+under the same connected broker profile. Use the same compiled
+`AQMultiAccountRouting` function for every participating signal. Reserve the
+shared follower for routed orders. [MultiCharts .NET programming guide, compilation and assembly handling](https://download.multicharts.com/downloads/MultiCharts.NET-ProgrammingGuide-v1.0.pdf)
+
+The first strategy to submit an entry owns the follower while it has working
+orders or an open position. This applies across symbols. Only that strategy
+can manage the follower's working orders and exits. Output logs any competing
+entry as **Multi-account entry skipped**, with the follower and the strategy
+currently using it. Skipped entries are discarded. The next fresh signal can use
+the account after the broker confirms it is flat and all orders have cleared.
+Each chart continues to run its primary and any other available followers.
+Use separate primaries for charts trading the same symbol in synchronous mode
+to keep their positions in sync. [MultiCharts Auto Trading modes](https://www.multicharts.com/trading-software/index.php?title=Auto_Trading_Modes)
+
+For a paper check, set `SIM-A` as the first chart's primary and `SIM-B` as the
+second chart's primary. Use **Ctrl+left-click** on each chart and save `SIM-C`
+as the follower on both. Enable Auto Trading and look for **Multi-account
+armed** for each strategy. When both send entries while the first order is
+working or `SIM-C` has a position, expect one strategy's orders in **Order and
+Position Tracker** and a busy skip in **Output**. After that position closes and
+all orders clear, check that a fresh entry from the second strategy reaches
+`SIM-C` and uses that strategy's protection.
+
+Flatten and confirm that all working orders have cleared before disabling
+automation, removing a signal or changing followers. Unmanaged orders can
+remain working after a chart stops. The router halts an active follower on
+unexpected outside orders, uncertain status or connection loss. Other accounts
+can continue. If the owner is removed while a submission is uncertain or its
+fills cannot be reconciled to flat, the router keeps the follower reserved.
+Verify with the broker that the follower is flat and has no working orders
+before restarting MultiCharts to clear such a reservation.
 
 Follower market orders are submitted at the signal's live decision callback.
 Actual fill times and prices can differ from both the managed account and the
@@ -86,12 +112,13 @@ Position Tracker. [MultiCharts TradeManager](https://www.multicharts.com/trading
 
 The isolated router checks run with the .NET 9 SDK using
 `dotnet run --project tests/multicharts_account_routing/RoutingCheck.csproj`.
-They exercise multiple profiles and accounts, partial fills, OCO order
-requests, cancel acknowledgements, rejection isolation and callbacks using
-test doubles. Picker cases cover a dynamic inventory, unavailable accounts,
-workspace reload and attempts to change a route with Auto Trading on or with
-outstanding orders. Confirm the dialog, workspace reopen and paper fills in
-the MultiCharts host using the steps above.
+They exercise multiple profiles and accounts, shared-account handoffs and
+competing entries, partial fills, OCO order requests, cancel acknowledgements,
+rejection isolation and callbacks using test doubles. Picker cases cover a
+dynamic inventory, unavailable accounts, workspace reload and attempts to
+change a route with Auto Trading on or with outstanding orders. Confirm the
+dialog, workspace reopen and paper fills in the MultiCharts host using the
+steps above.
 
 ## Signal setup
 
@@ -262,7 +289,7 @@ Calendar selection now follows the explicit instrument symbol: AQ uses the
 saved dataset symbol and MC uses `Bars.Info.Name`, the symbol-name API documented
 in the [official .NET FAQ](https://www.multicharts.com/discussion/viewtopic.php?p=115164&view=show).
 The MultiCharts CSV mode accepts the reviewed NQ mapping, including
-`NQ`, `@NQ`, `NQ1!`, `NQZ26`, and `NQ.CME`. AlphaQuest also maps MNQ in
+`NQ`, `@NQ`, `NQ1!`, `NQZ26`, `NQ.CME`, and the exact chart alias `NQ TIP`. AlphaQuest also maps MNQ in
 CSV mode. Fixed hours have no symbol mapping on either platform.
 
 AQ displays the resolved calendar before Run and exposes **Close buffer

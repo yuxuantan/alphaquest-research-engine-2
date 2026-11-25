@@ -14,12 +14,15 @@ static class Program
     { typeof(Signal).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance).SetValue(s,value); }
     static object Get(Signal s, string name)
     { return typeof(Signal).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance).GetValue(s); }
-    static Signal Setup(bool visual, bool shortSide, int retest, string calendar, bool? externalCalendar = null)
+    static Signal Setup(bool visual, bool shortSide, int retest, string calendar,
+        bool? externalCalendar = null, string symbol = "NQ")
     {
         var s = new Signal(null) { ShowTradeValidation=visual, UseEODFlat=calendar!=null || externalCalendar.HasValue,
             UseExternalCalendar=externalCalendar ?? true,
             SessionCalendarDirectory=calendar, PlotTradeLevels=false, RetestMode=retest,
             TradeLongs=!shortSide, TradeShorts=shortSide, ValidationHistoryBars=1000 };
+        s.Bars.Info.Resolution.Size = 1;
+        s.Bars.Info.Name = symbol;
         s.Initialize();
         // Explicit known pivots/finished ORB; no dependence on a platform's ADX or fill engine.
         s.Bars.Add(Start.AddMinutes(-1),100,100,100); s.Bars.CurrentBar=0;
@@ -131,9 +134,9 @@ static class Program
     static void OptionalCalendar(string calendar)
     {
         Check(new Signal(null).UseExternalCalendar, "reviewed schedule stays the default");
-        DateTime holiday = new DateTime(2024, 1, 15, 9, 1, 0);
-        var reviewed = Setup(false, false, 1, calendar);
-        var fixedHours = Setup(false, false, 1, null, false);
+        DateTime holiday = new DateTime(2018, 5, 28, 9, 1, 0);
+        var reviewed = Setup(false, false, 1, calendar, symbol: "NQ TIP");
+        var fixedHours = Setup(false, false, 1, null, false, "NQ TIP");
         fixedHours.EODFlatTime = 1545;
         foreach (var s in new[] {reviewed, fixedHours})
         {
@@ -141,7 +144,13 @@ static class Program
             Step(s, holiday.AddMinutes(1), false, 1);
             Step(s, holiday.Date.AddHours(11).AddMinutes(55), false, 1);
         }
-        Check(reviewed.OrderCreator.Sent.Last()=="EOD.L market 1", "CSV noon close submits at 11:55");
+        Check(reviewed.OrderCreator.Sent.Last()=="EOD.L market 1", "NQ TIP uses the CSV noon close and submits at 11:55");
+        Step(reviewed, holiday.Date.AddHours(11).AddMinutes(56), false, 0);
+        Step(reviewed, holiday.Date.AddHours(17).AddMinutes(1), false, 0);
+        bool unknownSymbolRejected = false;
+        try { Setup(false, false, 1, calendar, symbol: "NQ TIP Copy"); }
+        catch (ArgumentException e) { unknownSymbolRejected = e.Message.Contains("No reviewed session calendar"); }
+        Check(unknownSymbolRejected, "the alias does not allow arbitrary NQ suffixes");
         Check(!fixedHours.OrderCreator.Sent.Contains("EOD.L market 1"), "fixed clock skips the holiday adjustment");
         Step(fixedHours, holiday.Date.AddHours(15).AddMinutes(45), false, 1);
         Check(fixedHours.OrderCreator.Sent.Last()=="EOD.L market 1", "fixed clock still submits EOD flatten");
@@ -153,6 +162,33 @@ static class Program
         Step(beyondCoverage, future.AddMinutes(1), false, 1);
         Step(beyondCoverage, future.Date.AddHours(15).AddMinutes(55), false, 1);
         Check(beyondCoverage.OrderCreator.Sent.Last()=="EOD.L market 1", "fixed 16:00 close uses the default five-minute buffer");
+    }
+
+    static void ChartIntervalAndMissingExit(string calendar)
+    {
+        foreach (bool useCalendar in new[] { false, true })
+        {
+            var wrongInterval = new Signal(null) { UseExternalCalendar = useCalendar };
+            wrongInterval.Bars.Info.Resolution.Size = 15;
+            bool rejected = false;
+            try { wrongInterval.Initialize(); }
+            catch (ArgumentException e) { rejected = e.Message.Contains("requires a 1-minute chart"); }
+            Check(rejected && wrongInterval.OrderCreator.Sent.Count == 0, "15-minute chart rejects before orders or calendar loading");
+
+            var missingExit = Setup(false, false, 1, useCalendar ? calendar : null, useCalendar);
+            Step(missingExit, Start, false, 0);
+            Step(missingExit, Start.AddMinutes(1), false, 1);
+            Step(missingExit, Start.Date.AddHours(15).AddMinutes(55), false, 1);
+            Check(missingExit.OrderCreator.Sent.Last() == "EOD.L market 1", "exit submitted on the 1-minute cutoff bar");
+            rejected = false;
+            try { Step(missingExit, Start.Date.AddHours(17).AddMinutes(1), false, 0); }
+            catch (InvalidOperationException e)
+            {
+                rejected = e.Message.Contains("flatten cutoff 15:55, session close 16:00")
+                    && e.Message.Contains("2024-01-16 17:01");
+            }
+            Check(rejected, "a fill only visible in the evening still rejects with the cutoff and timestamp");
+        }
     }
     static void PullbackSizingAndWindows()
     {
@@ -237,7 +273,8 @@ static class Program
 
     static void Main(string[] args)
     {
-        EntriesAndExits(args[0]); Rejections(args[0]); OptionalCalendar(args[0]); HistoryAndRestart(); PullbackSizingAndWindows(); LightweightAndOff();
+        EntriesAndExits(args[0]); Rejections(args[0]); OptionalCalendar(args[0]); ChartIntervalAndMissingExit(args[0]);
+        HistoryAndRestart(); PullbackSizingAndWindows(); LightweightAndOff();
         Followers();
         Console.WriteLine("PASS: "+assertions+" assertions; actual signal compiled with C# 5 against test doubles. MC host/SDK/rendering/fills NOT verified.");
     }

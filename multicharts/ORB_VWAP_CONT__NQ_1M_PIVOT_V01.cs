@@ -174,6 +174,8 @@ namespace PowerLanguage.Strategy
 
         protected override void StartCalc()
         {
+            if (Bars.Info.Resolution.Type != EResolution.Minute || Bars.Info.Resolution.Size != 1)
+                throw new ArgumentException("ORB VWAP Continuation requires a 1-minute chart. Set the chart interval to 1 Minute and recalculate.");
             multiAccount.StartPicker(this);
             ClearValidation();
             _lastCalculatedBar = -1;
@@ -275,7 +277,12 @@ namespace PowerLanguage.Strategy
                 {
                     NqSessionPlan previousPlan = PlanForDay(_holdingSession.Value);
                     if (!previousPlan.ScheduledClose.HasValue || stamp > previousPlan.ScheduledClose.Value)
-                        throw new InvalidOperationException("A held position crossed the strategy session close without an observed timely fill; reject this incomplete-source MC backtest.");
+                        throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture,
+                            "A held position crossed the strategy session close without an observed timely fill. " +
+                            "Session {0:yyyy-MM-dd}, flatten cutoff {1:HH:mm}, session close {2:HH:mm}, " +
+                            "first observed bar after close {3:yyyy-MM-dd HH:mm} (Chicago time). " +
+                            "Check that the 1-minute chart has bars through the session close.",
+                            previousPlan.Day, previousPlan.Cutoff, previousPlan.ScheduledClose, stamp));
                 }
                 if (position != 0)
                 {
@@ -789,7 +796,8 @@ namespace AlphaQuest.MarketCalendars
         public static string ResolveCalendarFile(string symbol, string directory)
         {
             string normalized = (symbol ?? "").Trim().ToUpperInvariant();
-            if (!Regex.IsMatch(normalized, @"\A@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?\z"))
+            if (normalized != "NQ TIP" &&
+                !Regex.IsMatch(normalized, @"\A@?NQ(?:[!#12]*|[FGHJKMNQUVXZ][0-9]{1,4})(?:[. ]CME)?\z"))
                 throw new ArgumentException("No reviewed session calendar for instrument '" + normalized + "'. Calendar EOD flattening currently supports NQ only.");
             if (String.IsNullOrWhiteSpace(directory))
                 throw new ArgumentException("SessionCalendarDirectory is required when UseEODFlat and UseExternalCalendar are enabled.");

@@ -105,7 +105,7 @@ namespace PowerLanguage.Function
                 };
                 router = new AccountRouter(owner.TradeManager, symbol, owner.Bars.Info.Name,
                     owner.Bars.Info.MinMove * owner.Bars.Info.PriceScale, destinations, configuredProfile,
-                    configuredAccount, message => owner.Output.WriteLine("{0}", message));
+                    configuredAccount, message => owner.Output.WriteLine("{0}", message), owner.GetType().Name);
             }
             else if (configuredDestinations != destinations || configuredProfile != owner.Profile ||
                 configuredAccount != owner.Account)
@@ -278,18 +278,28 @@ namespace PowerLanguage.Function
 
         private sealed class Route
         {
-            public string ProfileName, Account, BrokerSymbol;
+            public string ProfileName, Account, BrokerSymbol, Strategy;
             public ITradingProfile Profile;
+            public SharedFollower Shared;
             public readonly List<Ticket> Tickets = new List<Ticket>();
             public AccountEntry[] Requested = NoEntries, Working = NoEntries;
-            public bool Flatten, Armed, Faulted, StopsChanged, HaltAfterClose;
+            public bool Flatten, Armed, Faulted, StopsChanged, HaltAfterClose, Detached, SubmissionUnconfirmed;
             public int Net, RequestedBar;
             public DateTime? DriftSince;
         }
 
-        private static readonly object OrderPlacement = new object();
-        private static readonly Dictionary<string, Route> AccountOwners =
-            new Dictionary<string, Route>(StringComparer.OrdinalIgnoreCase);
+        private sealed class SharedFollower
+        {
+            public string ProfileName;
+            public readonly HashSet<Route> Subscribers = new HashSet<Route>();
+            public Route Owner;
+        }
+
+        // Share the account between strategies. Only the current owner can send or
+        // cancel orders until the broker confirms its orders and exposure cleared.
+        private static readonly object RoutingGate = new object();
+        private static readonly Dictionary<string, SharedFollower> Followers =
+            new Dictionary<string, SharedFollower>(StringComparer.OrdinalIgnoreCase);
         private static readonly TimeSpan AcknowledgementTimeout = TimeSpan.FromSeconds(10);
         private static readonly AccountEntry[] NoEntries = new AccountEntry[0];
         private readonly ITradeManager manager;
@@ -308,7 +318,7 @@ namespace PowerLanguage.Function
         }
 
         public AccountRouter(ITradeManager manager, MCSymbolInfo symbol, string symbolName, double tick,
-            string destinations, string primaryProfile, string primaryAccount, Action<string> log)
+            string destinations, string primaryProfile, string primaryAccount, Action<string> log, string strategy = null)
         {
             if (string.IsNullOrWhiteSpace(primaryProfile) || string.IsNullOrWhiteSpace(primaryAccount))
                 throw new InvalidOperationException("Set the primary Auto Trading profile and account first.");
@@ -323,7 +333,7 @@ namespace PowerLanguage.Function
             foreach (FollowerRoute destination in FollowerRoute.Parse(destinations, primaryAccount))
             {
                 routes.Add(new Route { ProfileName = destination.Profile, Account = destination.Account,
-                    BrokerSymbol = destination.BrokerSymbol ?? symbolName });
+                    BrokerSymbol = destination.BrokerSymbol ?? symbolName, Strategy = strategy ?? symbolName });
             }
         }
 
@@ -332,31 +342,31 @@ namespace PowerLanguage.Function
             manager.ProcessEvents();
             var orders = manager.TradingData.Orders.Items;
             var positions = manager.TradingData.Positions.Items;
-            foreach (Route route in routes.Where(route => route.Armed))
+            lock (RoutingGate)
             {
-                var accountOrders = orders.Where(order =>
-                    order.Profile == route.ProfileName && order.Account == route.Account).ToArray();
-                if (!Connected(route) ||
-                    positions.Any(position => position.Profile == route.ProfileName &&
-                        position.Account == route.Account && position.Value != 0) ||
-                    accountOrders.Any(order => !order.IsDead) ||
-                    route.Tickets.Any(ticket => !ticket.Final &&
-                        !accountOrders.Any(order => order.OrderID == ticket.Id && order.IsDead)))
-                    throw new InvalidOperationException("Confirm " + route.ProfileName + "|" + route.Account +
-                        " is connected, flat, and has no working or unconfirmed orders.");
+                foreach (Route route in routes.Where(route => route.Shared != null && route.Shared.Owner == route))
+                {
+                    bool flat = !AccountPositions(route, positions).Any();
+                    if (!Connected(route) || !ConfirmedClear(route, flat, AccountOrders(route, orders)))
+                        throw new InvalidOperationException("Confirm " + route.ProfileName + "|" + route.Account +
+                            " is connected, flat, and has no working or unconfirmed orders.");
+                }
             }
         }
 
         public void Release()
         {
-            lock (OrderPlacement)
+            lock (RoutingGate)
             {
                 foreach (Route route in routes)
                 {
-                    string key = route.ProfileName + "|" + route.Account;
-                    Route owner;
-                    if (AccountOwners.TryGetValue(key, out owner) && owner == route)
-                        AccountOwners.Remove(key);
+                    if (route.Shared == null || route.Detached) continue;
+                    route.Detached = true;
+                    route.Shared.Subscribers.Remove(route);
+                    // Retain a detached owner's tickets until another subscriber
+                    // confirms flat and final orders in a fresh broker snapshot.
+                    if (route.Shared.Owner == null && route.Shared.Subscribers.Count == 0)
+                        Followers.Remove(route.Account);
                 }
             }
         }
@@ -381,7 +391,7 @@ namespace PowerLanguage.Function
             }
             foreach (Route route in routes)
             {
-                if (route.Faulted) continue;
+                if (route.Faulted || route.Detached) continue;
                 try
                 {
                     if (!route.Armed)
@@ -395,63 +405,131 @@ namespace PowerLanguage.Function
                         }
                     }
 
-                    var accountPositions = positions.Where(position =>
-                        position.Profile == route.ProfileName && position.Account == route.Account && position.Value != 0)
-                        .ToArray();
-                    var accountOrders = orders.Where(order =>
-                        order.Profile == route.ProfileName && order.Account == route.Account).ToArray();
-
-                    if (!route.Armed)
+                    lock (RoutingGate)
                     {
-                        if (accountPositions.Length != 0 || accountOrders.Any(order => !order.IsDead))
-                        {
-                            Fault(route, "Follower must start flat and have no working orders.");
-                            continue;
-                        }
-                        lock (OrderPlacement)
-                        {
-                            string key = route.ProfileName + "|" + route.Account;
-                            if (AccountOwners.ContainsKey(key))
-                            {
-                                Fault(route, "Another signal already uses this follower account.");
-                                continue;
-                            }
-                            AccountOwners.Add(key, route);
-                            route.Armed = true;
-                        }
-                        log("Multi-account armed " + route.ProfileName + "|" + route.Account);
+                        if (!route.Detached)
+                            ServiceFollower(route, AccountPositions(route, positions), AccountOrders(route, orders));
                     }
-
-                    if (!Connected(route))
-                    {
-                        Fault(route, "Connection lost. Inspect all follower positions and orders before restarting.");
-                        continue;
-                    }
-
-                    ReadOrders(route, accountOrders);
-                    if (route.Faulted) continue;
-                    if (accountPositions.Any(position => position.MCSymbol != symbolName && position.BrokerSymbol != route.BrokerSymbol) ||
-                        accountOrders.Any(order => !order.IsDead && !route.Tickets.Any(ticket => ticket.Id == order.OrderID)))
-                    {
-                        Fault(route, "Found exposure on an unexpected symbol or an order outside this router.");
-                        continue;
-                    }
-
-                    int brokerPosition = accountPositions.Sum(position => position.Value);
-                    if (brokerPosition == route.Net) route.DriftSince = null;
-                    else if (!route.DriftSince.HasValue) route.DriftSince = DateTime.UtcNow;
-                    else if (DateTime.UtcNow - route.DriftSince.Value >= AcknowledgementTimeout)
-                    {
-                        Fault(route, "Reported position differs from the router's confirmed fills.");
-                        continue;
-                    }
-                    Advance(route, brokerPosition);
                 }
                 catch (Exception ex)
                 {
                     Fault(route, "Order status or transmission uncertain. Inspect the broker before restarting. " + ex.Message);
                 }
             }
+        }
+
+        private static BrokerPosition[] AccountPositions(Route route, BrokerPosition[] positions)
+        {
+            return positions.Where(position => position.Profile == route.ProfileName &&
+                position.Account == route.Account && position.Value != 0).ToArray();
+        }
+
+        private static BrokerOrder[] AccountOrders(Route route, BrokerOrder[] orders)
+        {
+            return orders.Where(order => order.Profile == route.ProfileName && order.Account == route.Account).ToArray();
+        }
+
+        private static bool ConfirmedClear(Route route, bool flat, BrokerOrder[] orders)
+        {
+            if (!flat || route.SubmissionUnconfirmed || orders.Any(order => !order.IsDead)) return false;
+            int net = route.Net;
+            foreach (Ticket ticket in route.Tickets.Where(ticket => !ticket.Final))
+            {
+                int index = Array.FindIndex(orders, order => order.OrderID == ticket.Id);
+                if (index < 0) return false;
+                BrokerOrder orderSnapshot = orders[index];
+                int side = orderSnapshot.Action == ETM_OrderAction.eTM_OA_Buy ? 1 : -1;
+                if (side != ticket.Side || orderSnapshot.FilledContracts < ticket.Filled ||
+                    orderSnapshot.FilledContracts > ticket.Parameters.contracts) return false;
+                net += side * (orderSnapshot.FilledContracts - ticket.Filled);
+            }
+            // A detached owner's final execution can arrive before its position snapshot.
+            return net == 0;
+        }
+
+        private void ServiceFollower(Route route, BrokerPosition[] positions, BrokerOrder[] orders)
+        {
+            if (!Connected(route))
+            {
+                Fault(route, "Connection lost. Inspect all follower positions and orders before restarting.");
+                return;
+            }
+            bool flat = positions.Length == 0;
+            bool clear = flat && orders.All(order => order.IsDead);
+            SharedFollower shared;
+            bool registered = Followers.TryGetValue(route.Account, out shared);
+            if (!registered)
+                shared = new SharedFollower { ProfileName = route.ProfileName };
+            if (shared.ProfileName != route.ProfileName)
+            {
+                Fault(route, "Use the same broker profile for every strategy sharing a follower account.");
+                return;
+            }
+
+            if (shared.Owner != null && shared.Owner.Detached && ConfirmedClear(shared.Owner, flat, orders))
+                shared.Owner = null;
+            if (!route.Armed)
+            {
+                if (!registered && !clear)
+                {
+                    Fault(route, "Follower must start flat and have no working orders.");
+                    return;
+                }
+                Followers[route.Account] = shared;
+                route.Shared = shared;
+                shared.Subscribers.Add(route);
+                route.Armed = true;
+                log("Multi-account armed " + route.ProfileName + "|" + route.Account + " for " + route.Strategy);
+            }
+
+            if (shared.Owner != null && shared.Owner != route)
+            {
+                if (route.Requested.Length != 0)
+                    log("Multi-account entry skipped " + route.ProfileName + "|" + route.Account + " for " +
+                        route.Strategy + ". Follower is busy with " + shared.Owner.Strategy + ".");
+                route.Requested = NoEntries;
+                route.Flatten = false;
+                route.StopsChanged = false;
+                return;
+            }
+            if (shared.Owner == null)
+            {
+                if (!clear)
+                {
+                    if (route.Requested.Length != 0)
+                        log("Multi-account entry skipped " + route.ProfileName + "|" + route.Account + " for " +
+                            route.Strategy + ". Broker tracker has exposure or working orders.");
+                    route.Requested = NoEntries;
+                    route.Flatten = false;
+                    return;
+                }
+                route.Flatten = false;
+                if (route.Requested.Length == 0) return;
+                shared.Owner = route;
+            }
+
+            ReadOrders(route, orders);
+            if (route.Faulted) return;
+            if (positions.Any(position => position.MCSymbol != symbolName && position.BrokerSymbol != route.BrokerSymbol) ||
+                orders.Any(order => !order.IsDead && !route.Tickets.Any(ticket => ticket.Id == order.OrderID)))
+            {
+                Fault(route, "Found exposure on an unexpected symbol or an order outside this router.");
+                return;
+            }
+
+            int brokerPosition = positions.Sum(position => position.Value);
+            if (brokerPosition == route.Net) route.DriftSince = null;
+            else if (!route.DriftSince.HasValue) route.DriftSince = DateTime.UtcNow;
+            else if (DateTime.UtcNow - route.DriftSince.Value >= AcknowledgementTimeout)
+            {
+                Fault(route, "Reported position differs from the router's confirmed fills.");
+                return;
+            }
+
+            Advance(route, brokerPosition);
+            if (route.Net == 0 && route.Requested.Length == 0 && !route.Flatten &&
+                ConfirmedClear(route, flat, orders))
+                shared.Owner = null;
         }
 
         public void Update(AccountEntry[] entries, bool refreshStops, bool flattenFirst)
@@ -679,11 +757,8 @@ namespace PowerLanguage.Function
             foreach (Ticket ticket in live)
             {
                 if (ticket.CancelRequested || !ticket.Seen) continue;
-                lock (OrderPlacement)
-                {
-                    Select(route);
-                    route.Profile.CancelOrder(ticket.Id);
-                }
+                Select(route);
+                route.Profile.CancelOrder(ticket.Id);
                 ticket.CancelRequested = true;
                 ticket.CancelledAt = DateTime.UtcNow;
             }
@@ -693,13 +768,10 @@ namespace PowerLanguage.Function
         private void Send(Route route, OrderParams[] orders, OrderUse use,
             AccountEntry[] entries, MTPA_OCOGroupType group)
         {
-            int[] ids;
-            lock (OrderPlacement)
-            {
-                Select(route);
-                ids = orders.Length == 1 ? new[] { route.Profile.PlaceOrder(orders[0]) } :
-                    route.Profile.PlaceOCOOrders(group, orders);
-            }
+            Select(route);
+            route.SubmissionUnconfirmed = true;
+            int[] ids = orders.Length == 1 ? new[] { route.Profile.PlaceOrder(orders[0]) } :
+                route.Profile.PlaceOCOOrders(group, orders);
             if (ids == null || ids.Length != orders.Length || ids.Any(id => id <= 0) ||
                 ids.Distinct().Count() != ids.Length || ids.Any(id => route.Tickets.Any(ticket => ticket.Id == id)))
             {
@@ -715,6 +787,7 @@ namespace PowerLanguage.Function
                     Side = orders[index].action == MTPA_OrdrActn.eMTPA_OA_Buy ? 1 : -1,
                     Entry = entries == null ? null : entries[index] });
             }
+            route.SubmissionUnconfirmed = false;
             log("Multi-account " + route.ProfileName + "|" + route.Account + " " + use +
                 " submitted #" + string.Join(", #", ids));
         }

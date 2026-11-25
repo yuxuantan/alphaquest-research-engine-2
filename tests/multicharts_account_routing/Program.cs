@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using ATCenterProxy.interop;
 using PowerLanguage;
@@ -20,9 +21,9 @@ internal static class Program
         if (!condition) throw new Exception(message);
     }
 
-    private static AccountRouter Router(TestBroker broker, string routes, List<string> log)
+    private static AccountRouter Router(TestBroker broker, string routes, List<string> log, string strategy = null)
     {
-        return new AccountRouter(broker, new MCSymbolInfo(), "MNQ", 0.25, routes, "Primary", "Lead", log.Add);
+        return new AccountRouter(broker, new MCSymbolInfo(), "MNQ", 0.25, routes, "Primary", "Lead", log.Add, strategy);
     }
 
     private static void Main()
@@ -32,6 +33,9 @@ internal static class Program
         StopPairReplacement();
         CompetingEntryFills();
         FlattenAndReverse();
+        SharedFollowerHandoff();
+        CompetingSharedEntries();
+        DetachedFollowerHandoff();
         RejectionsAndIsolation();
         ConfigurationAndCallbacks();
         PickerWorkspaceSelection();
@@ -43,12 +47,12 @@ internal static class Program
     private static void EntryAndPartialFills()
     {
         var broker = new TestBroker();
-        broker.AddProfile("First", "A", "B");
-        broker.AddProfile("Second", "C");
-        var router = Router(broker, "First|A;First|B;Second|C", new List<string>());
+        broker.AddProfile("First", "PartialA", "PartialB");
+        broker.AddProfile("Second", "PartialC");
+        var router = Router(broker, "First|PartialA;First|PartialB;Second|PartialC", new List<string>());
         router.Service(7, true);
         router.Update(new[] { new AccountEntry(1, 2, null, Bracket) }, false, false);
-        Check(broker.Placed.Select(ticket => ticket.Snapshot.Account).SequenceEqual(new[] { "A", "B", "C" }),
+        Check(broker.Placed.Select(ticket => ticket.Snapshot.Account).SequenceEqual(new[] { "PartialA", "PartialB", "PartialC" }),
             "Each account receives one independent request, including those on one shared profile");
         Check(broker.Placed.All(ticket => ticket.Parameters.category == MTPA_OrdrCtgry.eMTPA_OC_Market &&
             ticket.Parameters.contracts == 2), "The direct market request uses the strategy quantity");
@@ -59,7 +63,7 @@ internal static class Program
         broker.Fill(broker.Placed[0], 1, 100, false);
         router.Service(8, false);
         var bracket = broker.Placed.Skip(3).ToArray();
-        Check(bracket.Length == 2 && bracket.All(order => order.Snapshot.Account == "A" &&
+        Check(bracket.Length == 2 && bracket.All(order => order.Snapshot.Account == "PartialA" &&
             order.Group == MTPA_OCOGroupType.eMTPA_OCOGT_ReduceSize && order.Parameters.contracts == 1),
             "Only the filled account gets a size-one native OCO bracket");
         Check(bracket[0].Parameters.stop_price == 98 && bracket[1].Parameters.limit_price == 104,
@@ -78,8 +82,8 @@ internal static class Program
     private static void DelayedAndGapProtection()
     {
         var broker = new TestBroker();
-        broker.AddProfile("Paper", "A");
-        var router = Router(broker, "Paper|A", new List<string>());
+        broker.AddProfile("Paper", "Delay");
+        var router = Router(broker, "Paper|Delay", new List<string>());
         router.Service(10, true);
         var delayed = new AccountBracket(99, 106, null, null, false);
         router.Update(new[] { new AccountEntry(1, 1, null, delayed) }, false, false);
@@ -109,8 +113,8 @@ internal static class Program
     private static void StopPairReplacement()
     {
         var broker = new TestBroker();
-        broker.AddProfile("Paper", "Twin");
-        var router = Router(broker, "Paper|Twin", new List<string>());
+        broker.AddProfile("Paper", "TwinRefresh");
+        var router = Router(broker, "Paper|TwinRefresh", new List<string>());
         var entries = new[] { new AccountEntry(1, 1, 101, Bracket), new AccountEntry(-1, 1, 99, Bracket) };
         router.Service(1, true);
         router.Update(entries, true, false);
@@ -209,10 +213,10 @@ internal static class Program
     private static void RejectionsAndIsolation()
     {
         var broker = new TestBroker();
-        broker.AddProfile("Bad", "A").RejectSubmission = true;
+        broker.AddProfile("Bad", "BadSend").RejectSubmission = true;
         broker.AddProfile("Paper", "B", "C");
         var log = new List<string>();
-        var router = Router(broker, "Bad|A;Paper|B;Paper|C", log);
+        var router = Router(broker, "Bad|BadSend;Paper|B;Paper|C", log);
         broker.Positions.Add(new Position { Profile="Paper", Account="C", MCSymbol="MNQ", Value=1 });
         router.Service(1, true);
         router.Update(new[] { new AccountEntry(1, 1, null, Bracket) }, false, false);
@@ -234,6 +238,123 @@ internal static class Program
         Check(broker.Placed.Count == 4 && log.Any(message => message.Contains("Risk incident cleared")),
             "A rejected bracket cannot silently start another trade after the emergency close");
         router.Release();
+    }
+
+    private static void SharedFollowerHandoff()
+    {
+        var broker = new TestBroker();
+        broker.AddProfile("Paper", "SharedAccount");
+        var firstLog = new List<string>();
+        var secondLog = new List<string>();
+        var first = Router(broker, "Paper|SharedAccount", firstLog, "FirstStudy");
+        var second = Router(broker, "Paper|SharedAccount", secondLog, "SecondStudy");
+        var buy = new[] { new AccountEntry(1, 1, null, Bracket) };
+        var sell = new[] { new AccountEntry(-1, 1, null, Bracket) };
+        first.Service(1, true);
+        first.Update(buy, false, false);
+        second.Service(1, true);
+        Check(firstLog.Any(message => message.Contains("armed")) && secondLog.Any(message => message.Contains("armed")),
+            "Both strategies can arm the shared account even while the first has a pending entry");
+
+        second.Update(sell, false, true);
+        Check(broker.Placed.Count == 1 && !broker.Placed[0].CancellationRequested &&
+            secondLog.Any(message => message.Contains("SecondStudy") && message.Contains("busy with FirstStudy")),
+            "A standby strategy logs the skipped reversal without canceling or adding orders");
+
+        broker.Fill(broker.Placed[0], 1, 100, true);
+        first.Service(1, false);
+        Check(broker.Placed.Count == 3, "The first strategy protects the shared fill with its own bracket");
+        second.Flatten(0);
+        Check(broker.Placed.Skip(1).All(order => !order.CancellationRequested),
+            "A standby strategy cannot cancel the owner's protection");
+        first.Flatten(0);
+        Check(broker.Placed.Skip(1).All(order => order.CancellationRequested),
+            "Only the owner cancels its protection to flatten");
+        broker.AcknowledgeCancellations();
+        first.Service(2, false);
+        second.Update(sell, false, false);
+        Check(broker.Placed.Count == 4 && broker.Placed[3].Parameters.contracts == 1 &&
+            broker.Placed[3].Parameters.action == MTPA_OrdrActn.eMTPA_OA_Sell,
+            "The pending close keeps ownership and covers only the owner's exposure");
+
+        broker.Fill(broker.Placed[3], 1, 101, true);
+        first.Service(2, false);
+        second.Service(2, false);
+        Check(broker.Placed.Count == 4, "The shared follower does not replay skipped entries after becoming flat");
+        second.Update(sell, false, false);
+        Check(broker.Placed.Count == 5 && broker.Placed[4].Parameters.action == MTPA_OrdrActn.eMTPA_OA_Sell,
+            "A fresh second strategy entry trades after the confirmed handoff");
+        first.Flatten(0);
+        first.RequireIdleForReconfiguration();
+        Check(!broker.Placed[4].CancellationRequested, "The previous owner can change selection without affecting the new order");
+        broker.Placed[4].Snapshot.State = ETM_OrderState.eTM_OS_Cancelled;
+        second.Service(3, false);
+        first.Release();
+        second.Release();
+    }
+
+    private static void DetachedFollowerHandoff()
+    {
+        var broker = new TestBroker();
+        var profile = broker.AddProfile("Paper", "DetachedAccount", "LaggedAccount", "UnconfirmedAccount");
+        var log = new List<string>();
+        var buy = new[] { new AccountEntry(1, 1, null, NoBracket) };
+        var departing = Router(broker, "Paper|DetachedAccount;Paper|LaggedAccount", log, "DepartingStudy");
+        var waiting = Router(broker, "Paper|DetachedAccount;Paper|LaggedAccount", log, "WaitingStudy");
+        departing.Service(1, true);
+        departing.Update(buy, false, false);
+        departing.Release();
+        waiting.Service(1, true);
+        waiting.Update(buy, false, false);
+        Check(broker.Placed.Count == 2, "Removing a study retains ownership for both outstanding entries");
+
+        broker.Placed[0].Snapshot.State = ETM_OrderState.eTM_OS_Cancelled;
+        broker.Fill(broker.Placed[1], 1, 100, true);
+        broker.Positions.Clear(); // The execution arrived before the position snapshot.
+        waiting.Service(1, false);
+        Check(broker.Placed.Count == 2, "A detached account still needs a fresh request after the final cancellation");
+        waiting.Update(buy, false, false);
+        Check(broker.Placed.Count == 3 && broker.Placed[2].Snapshot.Account == "DetachedAccount",
+            "A detached account with an unclosed fill stays reserved even while its position snapshot looks flat");
+        broker.Placed[2].Snapshot.State = ETM_OrderState.eTM_OS_Cancelled;
+        waiting.Service(2, false);
+        waiting.Release();
+
+        var uncertain = Router(broker, "Paper|UnconfirmedAccount", log, "UncertainStudy");
+        var replacement = Router(broker, "Paper|UnconfirmedAccount", log, "ReplacementStudy");
+        profile.RejectSubmission = true;
+        uncertain.Service(1, true);
+        uncertain.Update(buy, false, false);
+        uncertain.Release();
+        profile.RejectSubmission = false;
+        replacement.Service(1, true);
+        replacement.Update(buy, false, false);
+        Check(broker.Placed.Count == 3 && log.Any(message => message.Contains("busy with UncertainStudy")),
+            "A submission with unknown status keeps ownership even with an empty tracker");
+        replacement.Release();
+    }
+
+    private static void CompetingSharedEntries()
+    {
+        // Each study can still see a flat tracker before either order is acknowledged.
+        var firstView = new TestBroker();
+        var secondView = new TestBroker();
+        firstView.AddProfile("Paper", "CompetingAccount");
+        secondView.AddProfile("Paper", "CompetingAccount");
+        var first = Router(firstView, "Paper|CompetingAccount", new List<string>());
+        var second = Router(secondView, "Paper|CompetingAccount", new List<string>());
+        var buy = new[] { new AccountEntry(1, 1, null, NoBracket) };
+        first.Service(1, true);
+        second.Service(1, true);
+        Parallel.Invoke(() => first.Update(buy, false, false), () => second.Update(buy, false, false));
+        Check(firstView.Placed.Count + secondView.Placed.Count == 1,
+            "Concurrent entries cannot both acquire the same account while their broker views show flat");
+        foreach (var order in firstView.Placed.Concat(secondView.Placed))
+            order.Snapshot.State = ETM_OrderState.eTM_OS_Cancelled;
+        first.Service(2, false);
+        second.Service(2, false);
+        first.Release();
+        second.Release();
     }
 
     private sealed class Study : SignalObject
