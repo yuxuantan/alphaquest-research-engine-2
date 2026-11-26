@@ -35,7 +35,10 @@ def test_two_column_instrument_library_opens_saved_reports_and_survives_reload(p
     nav=page.get_by_role('navigation',name='Main navigation')
     assert nav.get_by_role('link').evaluate_all('links => links.map(n=>n.getAttribute("aria-label"))')==['Dataset','Research','Strategy Validation','Prop Desk']
     playwright.expect(nav.get_by_role('link',name='Research',exact=True)).to_have_attribute('href','#research')
-    playwright.expect(page.locator('#strategy-groups a')).to_have_text(['Consecutive Green Hold','Twin Continuation','Vwap Pullback Risk Sizing'])
+    playwright.expect(page.locator('#strategy-groups a')).to_have_text([
+        'Consecutive Green Hold', 'Noise', 'Overnight Bias Orb', 'Relative Strength',
+        'Twin Continuation', 'VWAP Pullback ADX',
+    ])
     playwright.expect(page.locator('#strategy-results')).to_be_empty()
     assert not any('/datasets/' in url and '/backtests' in url for url in requests)
     playwright.expect(page.locator('#strategy-datasets-status')).to_contain_text('Select a strategy')

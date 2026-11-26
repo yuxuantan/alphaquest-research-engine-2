@@ -8,6 +8,6 @@
     <DefineConstants>AQ_TWIN_CORE_ONLY</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../multicharts/Twin_Continuation.cs" Link="TwinCore.cs" />
+    <Compile Include="../../multicharts/signals/twin_continuation/OFB_TwinContinuation_Signal.cs" Link="TwinCore.cs" />
   </ItemGroup>
 </Project>

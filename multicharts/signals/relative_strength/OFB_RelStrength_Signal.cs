@@ -1,3 +1,5 @@
+// AlphaQuest counterpart: ../../../alphaquest/strategies/relative_strength.py
+// Strategy guide: ../../../docs/strategies/relative_strength.md
 using PowerLanguage.Function;
 using System;
 using System.Collections.Generic;

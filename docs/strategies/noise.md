@@ -2,7 +2,7 @@
 
 The [supplied PowerLanguage](noise.pl) is the reference for the
 [AlphaQuest strategy](../../alphaquest/strategies/noise.py) and the
-[MultiCharts .NET signal](../../multicharts/OFB_Noise_Signal.cs).
+[MultiCharts .NET signal](../../multicharts/signals/noise/OFB_Noise_Signal.cs).
 
 ## How it trades
 

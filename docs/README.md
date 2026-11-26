@@ -40,7 +40,8 @@
 - [Backtest API](backtest_api.md): requests and downloads.
 - [Report identity/deletion](strategy_navigation.md): pairing and preservation rules.
 - [Strategy features](strategy_features.md): preparation and reuse.
-- [VWAP strategy](strategies/vwap_pullback_risk_sizing.md): parameters, data and execution.
+- [AlphaQuest and MultiCharts signal pairs](../multicharts/README.md) links both implementations for each paired strategy.
+- [VWAP Pullback ADX](strategies/vwap_pullback_risk_sizing.md) covers parameters, data and execution.
 - [Twin Continuation](strategies/twin_continuation.md): supplied PowerLanguage signal ported to Python and MultiCharts .NET, execution assumptions and saved examples.
 - [NQ closure calendar](../calendars/README.md): 2016–2026 CSV, sources,
   date semantics, structural validation and manual maintenance.

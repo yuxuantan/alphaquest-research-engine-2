@@ -119,7 +119,7 @@ def review(output, dotnet):
                   cutoff_boundary_checks=len(rows) * 4, rejected_cases=rejections,
                   symbol_selection_checks=symbol_checks, tested_buffers=[1,5,10,1440],
                   bom_quoted_commas_quotes_newlines_accepted=True,
-                  compiled_source='multicharts/ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs',
+                  compiled_source='multicharts/signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs',
                   language_version='C# 5', host='.NET 8 standalone calendar helper only',
                   full_multicharts_compile_backtest_live_qualified=False)
     (output / 'verification.json').write_text(json.dumps(result, indent=2))

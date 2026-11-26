@@ -1,5 +1,22 @@
 # MultiCharts .NET signals
 
+Each C# signal lives in `multicharts/signals/<alphaquest_strategy_id>/`. The ID
+also identifies its Python strategy, and each signal header points to that
+source and its guide. [Shared routing function](AQMultiAccountRouting.cs)
+
+| Strategy | AlphaQuest Python | MultiCharts .NET | Guide |
+| --- | --- | --- | --- |
+| Noise | [`noise.py`](../alphaquest/strategies/noise.py) | [`OFB_Noise_Signal.cs`](signals/noise/OFB_Noise_Signal.cs) | [Noise](../docs/strategies/noise.md) |
+| Overnight Bias ORB | [`overnight_bias_orb.py`](../alphaquest/strategies/overnight_bias_orb.py) | [`OFB_OvernightBiasORB_Signal.cs`](signals/overnight_bias_orb/OFB_OvernightBiasORB_Signal.cs) | [Overnight Bias ORB](../docs/strategies/overnight_bias_orb.md) |
+| Relative Strength | [`relative_strength.py`](../alphaquest/strategies/relative_strength.py) | [`OFB_RelStrength_Signal.cs`](signals/relative_strength/OFB_RelStrength_Signal.cs) | [Relative Strength](../docs/strategies/relative_strength.md) |
+| Twin Continuation | [`twin_continuation.py`](../alphaquest/strategies/twin_continuation.py) | [`OFB_TwinContinuation_Signal.cs`](signals/twin_continuation/OFB_TwinContinuation_Signal.cs) | [Twin Continuation](../docs/strategies/twin_continuation.md) |
+| VWAP Pullback ADX | [`vwap_pullback_risk_sizing.py`](../alphaquest/strategies/vwap_pullback_risk_sizing.py) | [`OFB_VwapPullbackADX_Signal.cs`](signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs) | [VWAP Pullback ADX](../docs/strategies/vwap_pullback_risk_sizing.md) |
+
+For charts that use `Twin_Continuation` or `ORB_VWAP_CONT__NQ_1M_PIVOT_V01`,
+create and compile the corresponding newly named Signal in PowerLanguage .NET
+Editor. With Auto Trading off, replace the old study on the chart, transfer its
+Inputs (including follower accounts), and recalculate before comparing results.
+
 ## One chart with multiple broker accounts
 
 All five signals open a **Follower Accounts** dialog when you hold **Ctrl**
@@ -128,25 +145,25 @@ same nearest-extreme-first path (Low first on ties), with post-entry protection.
 Older stop-first notes and dated numerical examples below remain historical.
 
 [Relative Strength](../docs/strategies/relative_strength.md) uses
-[OFB_RelStrength_Signal.cs](OFB_RelStrength_Signal.cs) on a synchronized
+[OFB_RelStrength_Signal.cs](signals/relative_strength/OFB_RelStrength_Signal.cs) on a synchronized
 one-minute NQ Data1 and ES Data2 Globex chart in Exchange time. Turn on
 `showValidation` for the decision inputs, gate results, stop and target levels,
 and exit submissions in Output and on the chart.
 
 [Noise](../docs/strategies/noise.md) uses
-[OFB_Noise_Signal.cs](OFB_Noise_Signal.cs) on a close-stamped 15-minute NQ
+[OFB_Noise_Signal.cs](signals/noise/OFB_Noise_Signal.cs) on a close-stamped 15-minute NQ
 chart with one-minute Bar Magnifier and the Exchange clock. Turn on
 `showValidation` for the bands, EMA and protective levels on the chart. Use
 Output for the timestamped gates, daily limits and next-open submissions.
 
 [Overnight Bias ORB](../docs/strategies/overnight_bias_orb.md) uses the
-[OFB_OvernightBiasORB_Signal.cs](OFB_OvernightBiasORB_Signal.cs) signal on a
+[OFB_OvernightBiasORB_Signal.cs](signals/overnight_bias_orb/OFB_OvernightBiasORB_Signal.cs) signal on a
 15-minute NQ Globex chart with one-minute Bar Magnifier. Set
 `showValidation=true` for the decision gates, submitted brackets and observed
 position changes in the Output window and on the chart.
 
 [Twin Continuation](../docs/strategies/twin_continuation.md) is implemented in
-[`Twin_Continuation.cs`](Twin_Continuation.cs): the supplied Swing Breakout and
+[`OFB_TwinContinuation_Signal.cs`](signals/twin_continuation/OFB_TwinContinuation_Signal.cs): the supplied Swing Breakout and
 Morning Momentum signal, with setup-owned exits and all original Inputs.
 `ImmediateProtection=true` now prepares native fill-relative TP/SL and
 conditional BO swing stops before entry; entries/indicators stay at bar close.
@@ -167,14 +184,14 @@ for bounded history, or `-1` for every segment across loaded history. See the
 Set `ShowTradeValidation=false` for live use. No separate indicator is required; its former
 source has been removed. Previously saved qualification artifacts are retained.
 
-## VWAP pullback in AQ and MultiCharts .NET
+## VWAP Pullback ADX in AQ and MultiCharts .NET
 
 The repository contains the two maintained implementations of this strategy:
 
 | Platform | Active source |
 | --- | --- |
 | AlphaQuest | [`alphaquest/strategies/vwap_pullback_risk_sizing.py`](../alphaquest/strategies/vwap_pullback_risk_sizing.py) |
-| MultiCharts .NET | [`ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs`](ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs) |
+| MultiCharts .NET | [`OFB_VwapPullbackADX_Signal.cs`](signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs) |
 | Shared scheduled NQ closures | [`calendars/cme_nq_closures.csv`](../calendars/cme_nq_closures.csv) |
 
 The attached original C# is preserved byte-for-byte in
@@ -219,7 +236,7 @@ refreshes, which remain visible in the per-bar readout.
 To use and validate:
 
 1. Replace the **entire** signal source with
-   [`ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs`](ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs)
+   [`OFB_VwapPullbackADX_Signal.cs`](signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs)
    in PowerLanguage .NET Editor and compile. Follow the installation steps below
    for the calendar, Chicago chart time and full-session one-minute bars.
 2. In the chart's **Format Signals**, select the signal, open its Inputs and
@@ -325,8 +342,8 @@ review date, not announcement time. Read the [calendar maintenance guide](../cal
    `Get-FileHash -Algorithm SHA256` with `shasum -a 256` on the repository file.
    Current delivered SHA-256:
    `a71258719fdd433586250e242f5d10c78b49ea700a5312a24dc870307a05f81a`.
-2. In the PowerLanguage .NET Editor use the supplied signal's class/name
-   `ORB_VWAP_CONT__NQ_1M_PIVOT_V01` and replace its source with the **entire**
+2. In the PowerLanguage .NET Editor create a Signal named
+   `OFB_VwapPullbackADX_Signal` and replace its source with the **entire**
    active `.cs` file, including the calendar helper namespace at the end.
    Preserve your old signal separately first. Compile with the installed MC
    SDK. No additional CSV package is required. Do **not** define

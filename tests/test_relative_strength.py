@@ -70,7 +70,7 @@ def test_embedded_calendars_match_supplied_source():
     source = Path('docs/strategies/relative_strength.pl').read_text()
     codes = [int(n) for n in re.findall(r'Hol(?:Full|Early)\[\d+\] = (\d+)', source)]
     assert len(codes) == 207
-    net = Path('multicharts/OFB_RelStrength_Signal.cs').read_text().split('private static readonly HashSet<int> Holidays')[1].split('};')[0]
+    net = Path('multicharts/signals/relative_strength/OFB_RelStrength_Signal.cs').read_text().split('private static readonly HashSet<int> Holidays')[1].split('};')[0]
     assert HOLIDAYS == set(codes) == {int(n) for n in re.findall(r'\b\d{7}\b', net)}
     description = get_strategy('relative_strength').description()
     trade_dir, = [parameter for parameter in description['parameters'] if parameter['name'] == 'trade_dir']

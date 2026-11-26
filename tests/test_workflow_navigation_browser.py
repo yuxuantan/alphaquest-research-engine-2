@@ -35,7 +35,7 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     nav.get_by_role('link', name='Strategy Validation', exact=True).click()
     playwright.expect(page.get_by_role('heading', name='Choose a strategy')).to_be_visible()
     playwright.expect(page.locator('#workflow-campaign-detail')).to_contain_text('A breakout of the day’s opening range')
-    page.get_by_role('link', name='Twin continuation twin_continuation', exact=True).click()
+    page.get_by_role('link', name='Twin Continuation twin_continuation', exact=True).click()
     detail = page.locator('#workflow-campaign-detail')
     playwright.expect(detail).to_contain_text('Confirmed swing breakouts and morning momentum')
     playwright.expect(detail.locator('.workflow-dataset')).to_have_count(0)
@@ -44,12 +44,21 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     assert not notes.evaluate('details => details.open')
     notes.locator(':scope > summary').click()
     detail.get_by_text('Source code', exact=True).click()
-    playwright.expect(detail.locator('code')).to_have_text('alphaquest/strategies/twin_continuation.py')
+    playwright.expect(detail.locator('.workflow-source code')).to_have_text([
+        'alphaquest/strategies/twin_continuation.py',
+        'multicharts/signals/twin_continuation/OFB_TwinContinuation_Signal.cs',
+    ])
     page.screenshot(path=str(tmp_path/'campaigns.png'), full_page=True)
     page.reload()
-    playwright.expect(detail.locator('h2')).to_have_text('Twin continuation')
+    playwright.expect(detail.locator('h2')).to_have_text('Twin Continuation')
     page.go_back()
-    playwright.expect(detail.locator('h2')).to_have_text('ORB + VWAP pullback')
+    playwright.expect(detail.locator('h2')).to_have_text('VWAP Pullback ADX')
+    detail.locator('.campaign-strategy-notes > summary').click()
+    detail.get_by_text('Source code', exact=True).click()
+    playwright.expect(detail.locator('.workflow-source code')).to_have_text([
+        'alphaquest/strategies/vwap_pullback_risk_sizing.py',
+        'multicharts/signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs',
+    ])
     page.goto(portal['url']+'/#campaigns/missing')
     playwright.expect(detail).to_contain_text('Strategy not found')
     page.goto(portal['url']+'/#research')

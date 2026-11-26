@@ -42,8 +42,7 @@
     open.onclick=async()=>{open.disabled=true;try{const response=await window.portalLoading.fetch('/api/backtests/'+choice.value),source=await response.json();if(!response.ok||source.run_metadata?.research?.phase!=='is'||source.run_metadata?.source?.kind==='external_trade_export'||source.capabilities?.nested_research===false)throw Error('Choose an available native in-sample report for nested research.');const declaration=structuredClone(record.declaration);declaration.source_backtest_id=choice.value;if(!declaration.sources.some(row=>row.backtest_id===choice.value))declaration.sources.push({backtest_id:choice.value,sizes:[1]});const result=await api('/drafts',{method:'POST',body:{kind:'nested',name:record.name.slice(0,108)+' · rebound',declaration}});location.hash='#backtests/prop/new/'+choice.value+'?draft='+result.id;}catch(error){notice.textContent=error.message;open.disabled=false;}};await sources();
   }
   const statusLabels={validated:'Ready to run',queued:'Queued',running:'Running',complete:'Completed',error:'Needs attention',cancelled:'Stopped',draft:'Draft'};
-  const strategyLabels={consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'VWAP Pullback Risk Sizing'};
-  const strategyLabel=value=>strategyLabels[value]||words(value);
+  const strategyLabel=value=>strategyDisplayName(value,value==='consecutive_green_hold'?'Consecutive Green Hold':words(value));
   async function render(parent,{isCurrent=()=>true}={}){
     parent.replaceChildren();
     const header=el('div');header.className='page-heading research-heading';const intro=el('div');intro.append(el('h1','Research'),el('p','Find saved sizing studies and strategy studies, continue drafts, or review results.'));header.append(intro);parent.append(header);

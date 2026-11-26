@@ -11,7 +11,7 @@
   };
   const campaigns = [
     {
-      id: "vwap_pullback_risk_sizing", name: "ORB + VWAP pullback",
+      id: "vwap_pullback_risk_sizing", multiChartsSignal: "OFB_VwapPullbackADX_Signal",
       hypothesis: "A breakout of the day’s opening range followed by a pullback into VWAP signals continuation.",
       logic: ["Entry: opening-range break, then VWAP retest and reclaim.", "Stop: confirmed pivot or pullback extreme, with a configurable buffer.", "Take profit: confirmed pivot target, subject to reward/risk criteria."],
       entryNotes: [
@@ -31,14 +31,14 @@
       narrow: ["ADX length and elevation threshold", "Stop / target swing strength", "Entry window and minimum reward/risk"],
     },
     {
-      id: "twin_continuation", name: "Twin continuation",
+      id: "twin_continuation", multiChartsSignal: "OFB_TwinContinuation_Signal",
       hypothesis: "Confirmed swing breakouts and morning momentum offer complementary continuation setups.",
       logic: ["Entry: six-hour confirmed swing breakout or ten-minute morning momentum.", "Stop: setup-owned protection; momentum uses a fixed point distance.", "Take profit: breakout target multiple; momentum uses its scheduled exit."],
       broad: ["Breakout setup · enabled / disabled", "Momentum setup · enabled / disabled", "Immediate protection · enabled / disabled"],
       narrow: ["Breakout target multiple and ATR period", "Momentum trigger and stop distance", "Momentum entry window"],
     },
     {
-      id: "overnight_bias_orb", name: "Overnight Bias ORB",
+      id: "overnight_bias_orb", name: "Overnight Bias ORB", multiChartsSignal: "OFB_OvernightBiasORB_Signal",
       hypothesis: "This strategy tests whether a breakout in the direction suggested by the regular-session open will continue intraday.",
       overview: {
         steps: [
@@ -65,7 +65,7 @@
       narrow: ["Narrow locks the selected Broad values by default. Eligible numeric axes can be explicitly refined on a finer grid."],
     },
     {
-      id: "relative_strength", name: "Relative Strength",
+      id: "relative_strength", name: "Relative Strength", multiChartsSignal: "OFB_RelStrength_Signal",
       hypothesis: "When NQ moves unusually far beyond what its relationship with ES explains, the move may continue through the session.",
       overview: {
         steps: [
@@ -87,7 +87,7 @@
       narrow: ["Narrow locks selected Broad values by default. Eligible numeric axes can be refined. The −1 / 0 / +1 trade-direction codes are categories."],
     },
     {
-      id: "noise", name: "Noise",
+      id: "noise", name: "Noise", multiChartsSignal: "OFB_Noise_Signal",
       hypothesis: "Noise looks for directional moves that are unusually large for that time of day.",
       overview: {
         steps: [
@@ -142,7 +142,7 @@
       const id = location.hash === '#campaigns' ? catalogue.items.find(item => item.id === 'vwap_pullback_risk_sizing')?.id || catalogue.items[0]?.id : location.hash.slice('#campaigns/'.length);
       list.replaceChildren(node('h2', 'Choose a strategy'));
       for (const item of catalogue.items) {
-        const name = campaigns.find(c => c.id === item.id)?.name || item.name;
+        const name = strategyDisplayName(item.id, campaigns.find(c => c.id === item.id)?.name || item.name);
         const link = node('a', undefined, 'workflow-campaign-link');
         link.href = `#campaigns/${encodeURIComponent(item.id)}`;
         if (item.id === id) link.setAttribute('aria-current','true');
@@ -152,10 +152,11 @@
       const item = catalogue.items.find(c => c.id === id);
       if (!item) { host.append(node('h2','Strategy not found'),node('p','Choose a strategy from the list.')); return; }
       const definition = definitions.find(c => c.id === id);
-      const campaign = campaigns.find(c => c.id === id) || {id, name:item.name, hypothesis:definition?.description || 'Archived strategy code.', logic:[], broad:[], narrow:[]};
+      const campaign = campaigns.find(c => c.id === id) || {id, hypothesis:definition?.description || 'Archived strategy code.', logic:[], broad:[], narrow:[]};
+      const name = strategyDisplayName(id, campaign.name || item.name);
       get('#campaign-new-backtest').href = `#backtests/new?${new URLSearchParams({workflow:'mechanic', strategy:id})}`;
       get('#campaign-new-backtest').hidden = !definition;
-      host.append(node('h2',campaign.name),node('p',campaign.hypothesis,'campaign-hypothesis'));
+      host.append(node('h2',name),node('p',campaign.hypothesis,'campaign-hypothesis'));
       if (campaign.overview) {
         const overview = section(host, 'How it trades', campaign.overview.steps);
         overview.classList.add('campaign-overview');
@@ -180,7 +181,19 @@
       section(params,'Broad parameters',campaign.broad?.length ? campaign.broad : ['Not classified yet']);
       section(params,'Narrow parameters',campaign.narrow?.length ? campaign.narrow : ['Not classified yet']); notes.append(params);
       const source = node('details',undefined,'workflow-source');
-      source.append(node('summary','Source code'),node('code',definition ? `alphaquest/strategies/${id}.py` : 'No current local strategy code. Inspect the saved report for recorded provenance.'));
+      source.append(node('summary','Source code'));
+      if (definition) {
+        const python = node('p','AlphaQuest · ');
+        python.append(node('code',`alphaquest/strategies/${id}.py`));
+        source.append(python);
+        if (campaign.multiChartsSignal) {
+          const multiCharts = node('p','MultiCharts .NET · ');
+          multiCharts.append(node('code',`multicharts/signals/${id}/${campaign.multiChartsSignal}.cs`));
+          source.append(multiCharts);
+        }
+      } else {
+        source.append(node('p','No current local strategy code. Inspect the saved report for recorded provenance.'));
+      }
       action(source,'Browse existing saved runs →',`#strategies/${encodeURIComponent(id)}`); notes.append(source);
       host.append(notes);
       if (campaign.overview) host.append(datasets);
@@ -204,7 +217,7 @@
             if(!currentPage())return;
             const dialog=node('dialog',undefined,'workflow-delete-dialog');dialog.setAttribute('aria-labelledby','workflow-delete-title');
             const title=node('h2',preview.workflow_id?'Permanently delete validation study and results':'Permanently delete saved results');title.id='workflow-delete-title';
-            dialog.append(title,node('p',`${campaign.name} · ${preview.dataset_name}`),node('p',preview.workflow_id?`Selected validation study ${preview.workflow_id}`:'Selected saved-results group'),node('p',preview.interpretation));
+            dialog.append(title,node('p',`${name} · ${preview.dataset_name}`),node('p',preview.workflow_id?`Selected validation study ${preview.workflow_id}`:'Selected saved-results group'),node('p',preview.interpretation));
             const summary=node('ul');
             const studyCount=preview.workflow_ids.length;
             for(const text of [`${studyCount} validation ${studyCount===1?'study':'studies'}, including their reviews and frozen selections`,`${preview.job_ids.length} backtest batch(es) and ${preview.run_ids.length} backtest report(s)`,`${preview.simulation_ids.length} downstream Prop Sim / portfolio simulation(s) and ${preview.phase_campaign_ids.length} phase package(s)`,`${(preview.research_studies||[]).length} dependent research ${(preview.research_studies||[]).length===1?'study':'studies'}`,`${preview.analysis_ids.length} Monte Carlo / prop / research report(s)`,`${preview.file_count} files · ${(preview.bytes/1024/1024).toFixed(2)} MB`])summary.append(node('li',text));
@@ -271,7 +284,7 @@
         const latest=workflow.phases.find(phase=>phase.id===workflow.latest_phase);
         const pendingNarrow=latest.id==='is_narrow' ? workflow.narrow.find(branch=>!branch.confirmed_at_utc) : null;
         const destination=`#campaigns/workflows/${workflow.id}/${latest.id}${pendingNarrow?`?broad_trial=${pendingNarrow.broad_trial}`:''}`;
-        const heading = node('a',`${campaign.name} · ${dataset.name}`,'workflow-inline-link');
+        const heading = node('a',`${name} · ${dataset.name}`,'workflow-inline-link');
         heading.href = destination;
         const context = [dataset.symbol, `IS ${saved.plan.is_start} → ${saved.plan.is_end}`, `OOS ${saved.plan.oos_start} → ${saved.plan.oos_end}`];
         card.append(heading,node('span',context.filter(Boolean).join(' · ')));

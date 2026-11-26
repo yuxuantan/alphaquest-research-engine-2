@@ -8,7 +8,7 @@
     if (className) item.className = className;
     return item;
   };
-  const labels = {consecutive_green_hold:'Consecutive Green Hold',vwap_pullback_risk_sizing:'ORB + VWAP pullback',twin_continuation:'Twin continuation',overnight_bias_orb:'Overnight Bias ORB',noise:'Noise',relative_strength:'Relative Strength'};
+  const labels = {consecutive_green_hold:'Consecutive Green Hold',overnight_bias_orb:'Overnight Bias ORB',noise:'Noise',relative_strength:'Relative Strength'};
   let token = 0, current, saving = false, timer;
   const route = () => location.hash.match(/^#campaigns\/workflows\/([a-f0-9]{32})\/(mechanic_validation|is_broad|is_narrow|oos)(?:\?(?:job=([a-f0-9]{32})|broad_trial=(\d+)))?$/);
   const endpoint = id => `/api/campaign-workflows/${id}`;
@@ -72,7 +72,7 @@
   }
   function render(workflow, phase) {
     const saved = workflow.declaration, passed = workflow.status === 'passed';
-    get('#mechanic-title').textContent = labels[saved.strategy_id] || saved.strategy_id;
+    get('#mechanic-title').textContent = strategyDisplayName(saved.strategy_id, labels[saved.strategy_id] || saved.strategy_id);
     get('#mechanic-source').textContent = `${saved.dataset.name} · ${saved.dataset.symbol || 'Unspecified instrument'} · IS ${saved.plan.is_start} → ${saved.plan.is_end} · OOS ${saved.plan.oos_start} → ${saved.plan.oos_end} · ${saved.dataset.source_timezone}`;
     get('#mechanic-back').href = `#campaigns/${saved.strategy_id}`;
     const navigation = get('#mechanic-phases'); navigation.replaceChildren();

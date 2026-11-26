@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using PowerLanguage;
-using Signal = PowerLanguage.Strategy.ORB_VWAP_CONT__NQ_1M_PIVOT_V01;
+using Signal = PowerLanguage.Strategy.OFB_VwapPullbackADX_Signal;
 
 static class Program
 {

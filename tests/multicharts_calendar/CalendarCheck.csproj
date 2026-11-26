@@ -8,6 +8,6 @@
     <DefineConstants>AQ_CALENDAR_ONLY</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../multicharts/ORB_VWAP_CONT__NQ_1M_PIVOT_V01.cs" Link="CalendarReader.cs" />
+    <Compile Include="../../multicharts/signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs" Link="CalendarReader.cs" />
   </ItemGroup>
 </Project>

@@ -1,3 +1,5 @@
+// AlphaQuest counterpart: ../../../alphaquest/strategies/noise.py
+// Strategy guide: ../../../docs/strategies/noise.md
 using System;
 using System.Collections.Generic;
 using System.Drawing;

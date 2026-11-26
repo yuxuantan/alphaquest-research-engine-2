@@ -11,6 +11,15 @@ let datasets = [];
 const deleting = new Set();
 const MAX_BYTES = 1_000_000_000;
 
+const strategyNames = new Map([
+  ['twin_continuation', 'Twin Continuation'],
+  ['vwap_pullback_risk_sizing', 'VWAP Pullback ADX'],
+]);
+
+function strategyDisplayName(id, fallback = id) {
+  return strategyNames.get(id) ?? fallback;
+}
+
 function node(tag, className, text) {
   const element = document.createElement(tag);
   if (className) element.className = className;

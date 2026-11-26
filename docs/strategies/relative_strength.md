@@ -1,6 +1,6 @@
 # Relative Strength
 
-Relative Strength tests whether an unusually large NQ move, after accounting for ES, continues intraday. The supplied [RelStrength_v3 PowerLanguage](relative_strength.pl) is the reference. The ports are [AlphaQuest](../../alphaquest/strategies/relative_strength.py) and [MultiCharts .NET](../../multicharts/OFB_RelStrength_Signal.cs). In AlphaQuest open **Campaign → Relative Strength** to read the explanation before choosing a dataset.
+Relative Strength tests whether an unusually large NQ move, after accounting for ES, continues intraday. The supplied [RelStrength_v3 PowerLanguage](relative_strength.pl) is the reference. The ports are [AlphaQuest](../../alphaquest/strategies/relative_strength.py) and [MultiCharts .NET](../../multicharts/signals/relative_strength/OFB_RelStrength_Signal.cs). In AlphaQuest open **Campaign → Relative Strength** to read the explanation before choosing a dataset.
 
 ## Signal and execution
 

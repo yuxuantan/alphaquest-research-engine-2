@@ -219,7 +219,7 @@
       }
       datasetSelect.value = Array.from(datasetSelect.options).some((option) => option.value === desiredDataset && !option.disabled) ? desiredDataset : "";
       strategySelect.replaceChildren(new Option("Choose a strategy", ""));
-      for (const strategy of strategies) strategySelect.add(new Option(label(strategy.id), strategy.id));
+      for (const strategy of strategies) strategySelect.add(new Option(strategyDisplayName(strategy.id, label(strategy.id)), strategy.id));
       strategySelect.value = strategies.some((strategy) => strategy.id === previousStrategy)
         ? previousStrategy : strategies.length ? strategies[0].id : "";
       state.ready = supported > 0 && strategies.length > 0;
@@ -369,7 +369,7 @@
       ["Source timezone", metadata.dataset.source_timezone],
       ["Replay start · UTC", record.period_start_utc], ["Replay end · UTC", record.period_end_utc],
       ...(selection ? [["Source rows used", `${selection.first_source_bar_number}–${selection.last_source_bar_number}`]] : []),
-      ["Strategy", label(metadata.strategy.id)], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
+      ["Strategy", strategyDisplayName(metadata.strategy.id, label(metadata.strategy.id))], ["Timestamp convention", record.timestamp_convention === "bar_close" ? "Bar close" : record.timestamp_convention],
       ["Dataset SHA-256", metadata.dataset.sha256], ["Strategy source SHA-256", metadata.strategy.source_sha256],
       ["Execution assumption", record.execution_assumption], ["Currency", "CU · account currency unspecified"],
       ...(record.execution_decisions ? [["Entry decision evidence", `${record.execution_decisions.version} · ${record.execution_decisions.events} events · ${record.execution_decisions.bracket_submissions} bracket submissions`], ["Entry decision SHA-256", record.execution_decisions.sha256], ["Entry decision limitations", record.execution_decisions.policy]] : [["Entry decision evidence", "Not captured in this saved report. Historical decision times and initial stops are not inferred from later fills."]]),

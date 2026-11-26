@@ -6,8 +6,8 @@ The supplied PowerLanguage signal is preserved byte for byte in
 
 | Platform | Source / selection |
 | --- | --- |
-| AlphaQuest Python | [`twin_continuation.py`](../../alphaquest/strategies/twin_continuation.py), strategy ID `twin_continuation`; **Twin continuation** in Backtests |
-| MultiCharts .NET | Entire [`Twin_Continuation.cs`](../../multicharts/Twin_Continuation.cs), signal class `Twin_Continuation` |
+| AlphaQuest Python | [`twin_continuation.py`](../../alphaquest/strategies/twin_continuation.py), strategy ID `twin_continuation`; **Twin Continuation** in Backtests |
+| MultiCharts .NET | Entire [`OFB_TwinContinuation_Signal.cs`](../../multicharts/signals/twin_continuation/OFB_TwinContinuation_Signal.cs), signal class `OFB_TwinContinuation_Signal` |
 
 For visual inspection directly from the signal, enable `ShowTradeValidation`.
 The [chart validation guide](#chart-trade-validation) covers swing levels,
@@ -37,7 +37,7 @@ chart timezone to Chicago/exchange time. The .NET code interprets `Bars.Time`
 as that wall clock and verifies the one-minute chart resolution.
 
 In PowerLanguage .NET Editor, create a new **Signal**, name it
-`Twin_Continuation`, and replace its contents with the entire `.cs` file,
+`OFB_TwinContinuation_Signal`, and replace its contents with the entire `.cs` file,
 including `AlphaQuest.Twin`. Compile with the installed MultiCharts SDK.
 Use IOG off (also declared in the code), no multiple entries/pyramiding,
 Maximum Bars Back **5**, and the source session template. No DLL, Data2 or
@@ -425,7 +425,7 @@ and [pre-generated exit activation](https://www.multicharts.com/trading-software
 
 ## Chart trade validation
 
-Replace the signal with the entire updated `multicharts/Twin_Continuation.cs`
+Replace the signal with the entire updated `multicharts/signals/twin_continuation/OFB_TwinContinuation_Signal.cs`
 file and compile in the PowerLanguage .NET Editor. On the existing one-minute
 chart, open the signal's **Format / Inputs** and set **ShowTradeValidation=true**.
 This single flag controls all chart diagnostics; it defaults to **false**.

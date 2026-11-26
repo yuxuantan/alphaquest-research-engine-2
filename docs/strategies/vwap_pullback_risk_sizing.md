@@ -1,7 +1,8 @@
-# VWAP pullback — PowerLanguage port
+# VWAP Pullback ADX — AlphaQuest and MultiCharts .NET
 
-Select **Vwap pullback risk sizing** in Backtests. The implementation is
-`alphaquest/strategies/vwap_pullback_risk_sizing.py`. The supplied source is
+Select **VWAP Pullback ADX** in Backtests. Its strategy ID is
+`vwap_pullback_risk_sizing` and the AlphaQuest implementation is
+[`vwap_pullback_risk_sizing.py`](../../alphaquest/strategies/vwap_pullback_risk_sizing.py). The supplied source is
 preserved verbatim in [`vwap_pullback_risk_sizing.pl`](vwap_pullback_risk_sizing.pl),
 SHA-256 `12047fb6956d99d58ba1662517b398b86028923575d0447fac735b2bb7066b66`.
 
@@ -20,9 +21,10 @@ hours. The retained `.pl` is the original source.
 `plot_trade_levels` emits signal details through the module's INFO logger;
 enable INFO logging in your Python host to display them.
 
-The maintained [C# MultiCharts .NET version](../../multicharts/README.md) exposes
-the same switch as `UseExternalCalendar`. That guide includes installation, the four discrepancy
-dates and the remaining platform qualification boundaries.
+[`OFB_VwapPullbackADX_Signal.cs`](../../multicharts/signals/vwap_pullback_risk_sizing/OFB_VwapPullbackADX_Signal.cs)
+exposes the same switch as `UseExternalCalendar`. The MultiCharts guide includes
+installation, the four discrepancy dates and the remaining platform qualification
+boundaries. [MultiCharts guide](../../multicharts/README.md#vwap-pullback-adx-in-aq-and-multicharts-net)
 
 Use full-session **one-minute bars labelled by closing time**, with trade volume
 in CSV `Volume`. Save the dataset with its actual source timezone. The strategy

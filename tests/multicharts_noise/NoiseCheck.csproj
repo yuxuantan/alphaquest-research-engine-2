@@ -6,7 +6,7 @@
     <DefineConstants>AQ_ROUTING_TEST</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../multicharts/OFB_Noise_Signal.cs" />
+    <Compile Include="../../multicharts/signals/noise/OFB_Noise_Signal.cs" />
     <Compile Include="../multicharts_orb_validation/HostDoubles.cs" />
     <Compile Include="../../multicharts/AQMultiAccountRouting.cs" />
     <Compile Include="../multicharts_account_routing/TradingDoubles.cs" />

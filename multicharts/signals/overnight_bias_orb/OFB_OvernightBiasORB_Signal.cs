@@ -1,3 +1,5 @@
+// AlphaQuest counterpart: ../../../alphaquest/strategies/overnight_bias_orb.py
+// Strategy guide: ../../../docs/strategies/overnight_bias_orb.md
 using System;
 using System.Collections.Generic;
 using System.Drawing;

@@ -1,3 +1,5 @@
+// AlphaQuest counterpart: ../../../alphaquest/strategies/twin_continuation.py
+// Strategy guide: ../../../docs/strategies/twin_continuation.md
 // Decision-state port of docs/strategies/twin_continuation.pl, with optional
 // fill-activated protection in the host. See docs/multicharts_execution.md.
 // IOG disabled, one-minute close-labelled bars, Bar Magnifier OFF. The host
@@ -738,12 +740,12 @@ namespace AlphaQuest.Twin
 #if !AQ_TWIN_CORE_ONLY
 namespace PowerLanguage.Strategy
 {
-    // Add as a SIGNAL named Twin_Continuation; Data1 1 minute, Chicago time.
+    // Add as a SIGNAL named OFB_TwinContinuation_Signal; Data1 1 minute, Chicago time.
     // Manual Max Bars Back = 5; IOG off; no pyramiding. See strategy guide.
     [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
     [RecoverDrawings(false)]
-    public class Twin_Continuation : SignalObject
+    public class OFB_TwinContinuation_Signal : SignalObject
     {
         [Input] public string MultiAccountFollowers { get; set; }
         private AQMultiAccountRouting multiAccount;
@@ -759,7 +761,7 @@ namespace PowerLanguage.Strategy
         private readonly Dictionary<string,IOrderObject> entries = new Dictionary<string,IOrderObject>();
         private readonly Dictionary<string,IOrderMarket> markets = new Dictionary<string,IOrderMarket>();
         private readonly Dictionary<string,IOrderPriced> prices = new Dictionary<string,IOrderPriced>();
-        public Twin_Continuation(object ctx) : base(ctx)
+        public OFB_TwinContinuation_Signal(object ctx) : base(ctx)
         {
             MultiAccountFollowers = string.Empty;
             UseBreakout = true;

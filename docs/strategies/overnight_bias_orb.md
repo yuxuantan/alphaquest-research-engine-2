@@ -3,7 +3,7 @@
 The supplied [PowerLanguage](overnight_bias_orb.pl) is the reference.
 AlphaQuest registers [Overnight Bias ORB](../../alphaquest/strategies/overnight_bias_orb.py)
 as `overnight_bias_orb`. The MultiCharts .NET signal is
-[OFB_OvernightBiasORB_Signal.cs](../../multicharts/OFB_OvernightBiasORB_Signal.cs).
+[OFB_OvernightBiasORB_Signal.cs](../../multicharts/signals/overnight_bias_orb/OFB_OvernightBiasORB_Signal.cs).
 
 ## Match the clocks and warm-up
 
@@ -136,7 +136,7 @@ Run the focused checks from the checkout.
 ```sh
 .venv/bin/pytest -q tests/test_overnight_bias_orb.py tests/test_strategy_sizing_contract.py
 ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/pytest -q tests/test_campaign_mechanics_browser.py::test_overnight_bias_orb_default_mechanics_and_downloads
-pwsh -NoProfile -Command 'Add-Type -CompilerOptions "/define:AQ_ROUTING_TEST" -Path @("tests/multicharts_orb_validation/HostDoubles.cs","tests/multicharts_account_routing/TradingDoubles.cs","multicharts/AQMultiAccountRouting.cs","multicharts/OFB_OvernightBiasORB_Signal.cs","tests/multicharts_overnight_bias_orb/Program.cs"); [OvernightBiasOrbHostChecks]::Run()'
+pwsh -NoProfile -Command 'Add-Type -CompilerOptions "/define:AQ_ROUTING_TEST" -Path @("tests/multicharts_orb_validation/HostDoubles.cs","tests/multicharts_account_routing/TradingDoubles.cs","multicharts/AQMultiAccountRouting.cs","multicharts/signals/overnight_bias_orb/OFB_OvernightBiasORB_Signal.cs","tests/multicharts_overnight_bias_orb/Program.cs"); [OvernightBiasOrbHostChecks]::Run()'
 ```
 
 The C# check compiles the full signal against local host doubles and verifies

@@ -166,6 +166,7 @@ def test_orb_vwap_external_calendar_is_optional_in_backtest_setup(page, portal):
     page.goto(portal['url'] + '/#backtests')
     page.locator('#backtest-dataset').select_option(dataset_id)
     page.locator('#backtest-strategy').select_option('vwap_pullback_risk_sizing')
+    playwright.expect(page.locator('#backtest-strategy option:checked')).to_have_text('VWAP Pullback ADX')
     declare_in_form(page, declaration(dataset_id))
     playwright.expect(page.locator('#backtest-session-calendar')).to_contain_text('No reviewed session calendar')
     playwright.expect(page.locator('#start-backtest')).to_be_disabled()

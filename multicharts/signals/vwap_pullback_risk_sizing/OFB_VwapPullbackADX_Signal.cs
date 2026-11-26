@@ -1,3 +1,5 @@
+// AlphaQuest counterpart: ../../../alphaquest/strategies/vwap_pullback_risk_sizing.py
+// Strategy guide: ../../../docs/strategies/vwap_pullback_risk_sizing.md
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -20,7 +22,7 @@ namespace PowerLanguage.Strategy
     // Stops/targets are submitted only once a position is observed, as in source.
     [MouseEvents]
     [IOGMode(IOGMode.Disabled)]
-    public class ORB_VWAP_CONT__NQ_1M_PIVOT_V01 : SignalObject
+    public class OFB_VwapPullbackADX_Signal : SignalObject
     {
         [Input] public string MultiAccountFollowers { get; set; }
         private AQMultiAccountRouting multiAccount;
@@ -69,7 +71,7 @@ namespace PowerLanguage.Strategy
             }
         }
 
-        public ORB_VWAP_CONT__NQ_1M_PIVOT_V01(object ctx) : base(ctx)
+        public OFB_VwapPullbackADX_Signal(object ctx) : base(ctx)
         {
             MultiAccountFollowers = string.Empty;
             UseVolSizing = false;

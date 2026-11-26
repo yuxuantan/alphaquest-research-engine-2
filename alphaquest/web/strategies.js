@@ -3,6 +3,7 @@
   const $=s=>document.querySelector(s),el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const fmt=new Intl.NumberFormat('en-US',{maximumFractionDigits:2}),money=v=>v==null?'N/A':fmt.format(Number(v));
   const label=v=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+  const strategyLabel=id=>strategyDisplayName(id,label(id));
   let strategy=null,group=null,datasetOffset=0,runOffset=0,generation=0,controller,sort='created_at_utc',direction='desc',strategies=[];
   const pending=new Set();
   const remember=id=>{try{sessionStorage.setItem('strategy-report-return',JSON.stringify({id,route:location.hash}));}catch{}};
@@ -18,13 +19,13 @@
     try {
     const page=await read('/api/strategies/library');if(version!==generation)return;
     strategies=page.items;$('#strategy-groups').replaceChildren();
-    for(const item of strategies){const row=el('tr'),cell=el('td'),a=el('a',item.name,'instrument-link');a.href=strategyRoute(item.id);a.setAttribute('aria-current',item.id===strategy?'true':'false');row.dataset.strategyId=item.id;if(item.id===strategy)row.className='selected-instrument';cell.append(a,el('small',`${item.reports} saved reports${item.external_reports?` · ${item.external_reports} imported`:''}${item.registered?'':item.external_reports===item.reports?' · external strategy':' · archived strategy'}`,'field-help'));row.append(cell,el('td',String(item.datasets)));row.onclick=e=>{if(!e.target.closest('a'))location.hash=a.hash;};$('#strategy-groups').append(row);}
+    for(const item of strategies){const row=el('tr'),cell=el('td'),a=el('a',strategyDisplayName(item.id,item.name),'instrument-link');a.href=strategyRoute(item.id);a.setAttribute('aria-current',item.id===strategy?'true':'false');row.dataset.strategyId=item.id;if(item.id===strategy)row.className='selected-instrument';cell.append(a,el('small',`${item.reports} saved reports${item.external_reports?` · ${item.external_reports} imported`:''}${item.registered?'':item.external_reports===item.reports?' · external strategy':' · archived strategy'}`,'field-help'));row.append(cell,el('td',String(item.datasets)));row.onclick=e=>{if(!e.target.closest('a'))location.hash=a.hash;};$('#strategy-groups').append(row);}
     $('#strategies-status').textContent=strategies.length?'Select a strategy to browse the datasets used.':'No strategies available.';
     } finally { finishSectionLoading(); }
   }
   async function loadDatasets(version){
     if(!strategy)return;
-    $('#strategy-datasets-heading').textContent=`${label(strategy)} · datasets`;$('#strategy-datasets-status').textContent='Loading full dataset periods…';$('#strategy-datasets-table').hidden=true;$('#strategy-datasets').replaceChildren();
+    $('#strategy-datasets-heading').textContent=`${strategyLabel(strategy)} · datasets`;$('#strategy-datasets-status').textContent='Loading full dataset periods…';$('#strategy-datasets-table').hidden=true;$('#strategy-datasets').replaceChildren();
     $('#strategy-datasets-previous').disabled=$('#strategy-datasets-next').disabled=true;
     const finishSectionLoading=window.portalLoading.begin($('#strategy-datasets-status'));
     try {
@@ -47,7 +48,7 @@
     try{
       const page=await read(`${api()}/${group}/backtests?${new URLSearchParams({offset:runOffset,limit:25,sort,direction})}`);if(version!==generation)return;
       if(runOffset>=page.total&&runOffset){runOffset=Math.max(0,Math.floor((page.total-1)/25)*25);return loadRuns(version);}
-      const d=page.group.dataset,external=page.group.source_kind==='external_trade_export',names=metricNames.map(([key,name])=>[key,external?name.replace('· CU','· '+(page.group.currency||'unspecified')):name]);$('#strategy-results-heading').textContent=`${label(strategy)} · ${page.group.instrument}`;$('#strategy-full-period').textContent=`${external?'Imported source':'Full dataset'}: ${period(d)} · ${d.source_timezone} · ${d.name}`;
+      const d=page.group.dataset,external=page.group.source_kind==='external_trade_export',names=metricNames.map(([key,name])=>[key,external?name.replace('· CU','· '+(page.group.currency||'unspecified')):name]);$('#strategy-results-heading').textContent=`${strategyLabel(strategy)} · ${page.group.instrument}`;$('#strategy-full-period').textContent=`${external?'Imported source':'Full dataset'}: ${period(d)} · ${d.source_timezone} · ${d.name}`;
       $('#strategy-new-run').hidden=external;$('#strategy-new-run').href=`#backtests/new?${new URLSearchParams({strategy,dataset:d.id})}`;
       const select=$('#strategy-run-sort');select.replaceChildren();for(const [key,name] of [['created_at_utc','Created'],...['is','oos'].flatMap(p=>names.map(([k,n])=>[`${p}.${k}`,`${p.toUpperCase()} ${n}`])),...page.parameter_columns.map(p=>['param.'+p,'Parameter · '+label(p)])])select.add(new Option(name,key));select.value=sort;$('#strategy-run-direction').value=direction;select.disabled=$('#strategy-run-direction').disabled=false;
       const head=el('tr');head.append(el('th','Parameters / run'));for(const p of ['is','oos'])for(const [key,name] of names){const th=el('th'),button=el('button',`${p.toUpperCase()} ${name}`,'strategy-sort-heading');button.type='button';button.onclick=()=>{direction=sort===`${p}.${key}`&&direction==='desc'?'asc':'desc';sort=`${p}.${key}`;runOffset=0;void loadRuns(++generation);};th.setAttribute('aria-sort',sort===`${p}.${key}`?(direction==='asc'?'ascending':'descending'):'none');th.append(button);head.append(th);}head.append(el('th','Reports'));$('#strategy-runs-table thead').replaceChildren(head);
