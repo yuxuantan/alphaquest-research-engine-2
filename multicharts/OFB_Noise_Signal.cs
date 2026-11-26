@@ -38,7 +38,6 @@ namespace PowerLanguage.Strategy
         private int tradesToday, stopsToday, lastBar;
         private double todayOpen, prevClose, lastTotalTrades;
         private double observedPosition, observedTotalTrades;
-        private ITextObject validationPanel;
 
         public OFB_Noise_Signal(object ctx) : base(ctx)
         {
@@ -88,7 +87,6 @@ namespace PowerLanguage.Strategy
         {
             multiAccount.StartPicker(this);
             while (drawingDeletes.Count > 0) drawingDeletes.Dequeue()();
-            if (validationPanel != null) { validationPanel.Delete(); validationPanel = null; }
             if (Bars.Info.Resolution.Type != EResolution.Minute || Bars.Info.Resolution.Size != 15)
                 throw new ArgumentException("Noise requires a single close-stamped 15-minute chart series.");
             if (LookbackDays < 1 || LookbackDays > SlotCapacity || EMALength < 1)
@@ -228,7 +226,7 @@ namespace PowerLanguage.Strategy
                         stopsToday, MaxStopsPerDay, closedProfit, lossThreshold, countedLoss,
                         order.Length > 0 ? order : "none", LongTrade, ShortTrade, ContractsPerTrade, FlatSignalTime) : "";
                 if (summary.Length > 0)
-                    ShowBar(stamp, summary, order, observed, marketPosition, totalTrades, upper, lower, emaValue);
+                    ShowBar(stamp, summary, marketPosition, totalTrades, upper, lower, emaValue);
                 observedPosition = marketPosition;
                 observedTotalTrades = totalTrades;
             }
@@ -279,7 +277,7 @@ namespace PowerLanguage.Strategy
                 StopLossPoints > 0 && RewardRisk > 0 ? (double?)(StopLossPoints * RewardRisk) : null, true);
         }
 
-        private void ShowBar(DateTime stamp, string summary, string order, bool observed,
+        private void ShowBar(DateTime stamp, string summary,
             double marketPosition, double totalTrades, double upper, double lower, double emaValue)
         {
             double stop = double.NaN, target = double.NaN;
@@ -307,23 +305,6 @@ namespace PowerLanguage.Strategy
                 observedPosition, marketPosition, observedTotalTrades, totalTrades, entryPrice, stop, target,
                 StopLossPoints, StopLossPoints * RewardRisk);
             Output.WriteLine("{0}", summary);
-            if (order.Length > 0 || observed)
-            {
-                string label = order.Length > 0 ? "Next open: " + order : "Observed position / closed trades changed";
-                var marker = DrwText.Create(new ChartPoint(stamp, Bars.High[0]), label);
-                marker.Color = Color.Goldenrod;
-                marker.VStyle = ETextStyleV.Above;
-                Keep(() => marker.Delete());
-            }
-            if (Bars.LastBarOnChart)
-            {
-                var point = new ChartPoint(stamp, Bars.Low[0]);
-                if (validationPanel == null) validationPanel = DrwText.Create(point, summary);
-                else { validationPanel.Location = point; validationPanel.Text = summary; }
-                validationPanel.Color = Color.Goldenrod;
-                validationPanel.HStyle = ETextStyleH.Left;
-                validationPanel.VStyle = ETextStyleV.Below;
-            }
         }
 
         private void Level(DateTime stamp, double price, Color color)

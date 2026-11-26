@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Linq;
 using PowerLanguage;
 using PowerLanguage.Strategy;
@@ -68,11 +69,18 @@ internal static class Program
                 Require(plain.Output.Written.Count == 0 && plain.DrwTrendLine.Created.Count == 0, "Default-off diagnostics");
                 Require(shown.Output.Written.Any(s => s.Contains("prior samples 1/1") && s.Contains("Upper/lower 1000/1000")),
                     "Validation missed inputs");
+                Require(shown.DrwText.Created.Count == 0, "Validation added text over the native trade markers");
+                string exit = sign > 0 ? "LongRevExit" : "ShortRevExit";
+                Require(shown.Output.Written.Any(s => s.Contains("Next-open submission: " + exit) &&
+                                                      s.Contains("Observed position 0->" + sign * 2)),
+                    "Order and position details are available in Output");
+                Require(shown.DrwTrendLine.Created.Count(l => l.Color == Color.SteelBlue) == 4, "Both noise bands");
+                Require(shown.DrwTrendLine.Created.Count(l => l.Color == Color.DarkOrange) == 2, "Exit EMA");
                 Require(shown.DrwTrendLine.Created.Any(l => l.Begin.Price == 1000 + sign * 31), "Fill-relative target level");
                 Require(shown.DrwTrendLine.Created.Any(l => l.Begin.Price == 1000 - sign * 44), "Fill-relative stop level");
                 shown.showValidation = false;
                 shown.Restart();
-                Require(shown.DrwTrendLine.Created.All(l => l.Deleted) && shown.DrwText.Created.All(t => t.Deleted),
+                Require(shown.DrwTrendLine.Created.All(l => l.Deleted),
                     "Validation drawings survived reset");
             }
         }
@@ -96,6 +104,6 @@ internal static class Program
         Bar(signal, SignalDay.AddDays(2), 1430, 1000, 1000);
         Require(signal.OrderCreator.Sent.Last() == "FlatLong1430 market 2", "Exact clock exit independent of slot warm-up");
 
-        Console.WriteLine("Noise C# 5 signal checks passed: both reversal sides and caps, native protection arguments, daily loss/reset, exact flat time, and identical orders with validation enabled.");
+        Console.WriteLine("Noise C# 5 signal checks passed: price overlays, Output diagnostics, identical orders with validation enabled, both reversal sides and caps, native protection arguments, daily loss/reset, and exact flat time.");
     }
 }

@@ -136,8 +136,8 @@ and exit submissions in Output and on the chart.
 [Noise](../docs/strategies/noise.md) uses
 [OFB_Noise_Signal.cs](OFB_Noise_Signal.cs) on a close-stamped 15-minute NQ
 chart with one-minute Bar Magnifier and the Exchange clock. Turn on
-`showValidation` to inspect slot history, bands, EMA, daily limits and
-next-open submissions in Output and on the chart.
+`showValidation` for the bands, EMA and protective levels on the chart. Use
+Output for the timestamped gates, daily limits and next-open submissions.
 
 [Overnight Bias ORB](../docs/strategies/overnight_bias_orb.md) uses the
 [OFB_OvernightBiasORB_Signal.cs](OFB_OvernightBiasORB_Signal.cs) signal on a

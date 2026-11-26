@@ -62,6 +62,8 @@ namespace PowerLanguage
     }
     public interface ITrendLineObject
     {
+        ChartPoint End { get; set; }
+        double PriceValue(DateTime stamp);
         Color Color { get; set; } int Size { get; set; }
         bool ExtLeft { get; set; } bool ExtRight { get; set; }
         bool Delete();
@@ -73,7 +75,9 @@ namespace PowerLanguage
     }
     public sealed class Line : ITrendLineObject
     {
-        public ChartPoint Begin,End; public bool Deleted;
+        public ChartPoint Begin; public bool Deleted;
+        public ChartPoint End { get; set; }
+        public double PriceValue(DateTime stamp) { return Begin.Price; }
         public Color Color { get; set; } public int Size { get; set; }
         public bool ExtLeft { get; set; } public bool ExtRight { get; set; }
         public bool Delete() { bool removed = !Deleted; Deleted = true; return removed; }

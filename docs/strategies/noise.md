@@ -65,13 +65,12 @@ saved report records the clock rule and execution model.
    for 20 prior observations of each slot. For an Eastern chart, shift the three
    time inputs one hour forward. The original and .NET versions both read the
    chart clock.
-3. Turn on `showValidation`. In Output, inspect slot history, both anchors, the
-   candle open and close, bands, EMA, trail thresholds, clock and direction
-   gates, submission caps, and the closed-position P/L test. The chart marks
-   next-open submissions and observed changes in position or trade count.
-   Blue lines show the bands, orange shows EMA, and red and green show the
-   computed stop and target for held positions. The chart keeps the latest 480
-   diagnostic objects and a last-bar panel.
+3. Turn on `showValidation`. Blue lines show the bands, orange shows EMA, and
+   red and green show the computed stop and target for held positions. The chart
+   keeps the latest 480 line segments. Use native trade markers to identify
+   fills. In Output, find the timestamped bar to inspect the anchors, slot
+   history, candle prices, exit thresholds, entry gates, loss check, next-open
+   submission and observed position or trade-count changes.
 4. Compare both signals using identical source bars, session settings and zero
    costs first. Match submissions on the signal candle. Match fill prices,
    timestamps, quantities and reasons using the native trade list. Include a

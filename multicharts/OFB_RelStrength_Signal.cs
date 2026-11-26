@@ -43,6 +43,7 @@ namespace PowerLanguage.Strategy
         private const int AlignmentLogLimit = 10;
         private int alignmentLogs;
         private readonly Queue<Action> drawings = new Queue<Action>();
+        private ITrendLineObject activeStopLine, activeTargetLine;
         private static readonly HashSet<int> Holidays = new HashSet<int>
         {
             1100101, 1100118, 1100215, 1100402, 1100531, 1100705, 1100906, 1101125, 1101126, 1101224,
@@ -107,6 +108,9 @@ namespace PowerLanguage.Strategy
         protected override void StartCalc()
         {
             multiAccount.StartPicker(this);
+            if (activeStopLine != null) activeStopLine.Delete();
+            if (activeTargetLine != null) activeTargetLine.Delete();
+            activeStopLine = activeTargetLine = null;
             while (drawings.Count > 0) drawings.Dequeue()();
             lastBar = rangeIndex = rangeCount = previousSide = entriesToday = samples = barsSinceAnchor = 0;
             alignmentLogs = 0;
@@ -300,6 +304,8 @@ namespace PowerLanguage.Strategy
                 if (decision)
                     ShowDecision(stamp, high, nq, es, usedEsStamp, side, residual, z, signal, submitted);
                 if (changed || flatten) ShowExit(stamp, low, side, qty, entryPrice, sendStop, sendTarget, flatten);
+                UpdateExitLine(ref activeStopLine, stamp, stopPrice, Color.IndianRed, sendStop && !flatten, changed);
+                UpdateExitLine(ref activeTargetLine, stamp, targetPrice, Color.SeaGreen, sendTarget && !flatten, changed);
             }
             previousSide = side;
         }
@@ -342,11 +348,6 @@ namespace PowerLanguage.Strategy
             Marker(stamp, low, string.Format(CultureInfo.InvariantCulture,
                 "Observed MP {0} → {1}\nNext bar: stop {2} | target {3}\nFlat submission: {4}",
                 previousSide, side, stop, target, flat), ETextStyleV.Below);
-            if (side != previousSide && !flatten)
-            {
-                if (sendStop) Level(stamp, stopPrice, Color.IndianRed);
-                if (sendTarget) Level(stamp, targetPrice, Color.SeaGreen);
-            }
         }
 
         private void Marker(DateTime stamp, double price, string text, ETextStyleV style)
@@ -357,13 +358,23 @@ namespace PowerLanguage.Strategy
             Keep(() => { label.Delete(); });
         }
 
-        private void Level(DateTime stamp, double price, Color color)
+        private void UpdateExitLine(ref ITrendLineObject active, DateTime stamp, double price, Color color,
+            bool working, bool positionChanged)
         {
-            var line = DrwTrendLine.Create(new ChartPoint(stamp, price), new ChartPoint(stamp.AddMinutes(1), price));
-            line.Color = color;
-            line.Size = 2;
-            line.ExtLeft = line.ExtRight = false;
-            Keep(() => { line.Delete(); });
+            if (active != null && (!working || positionChanged))
+            {
+                var finished = active;
+                finished.End = new ChartPoint(stamp, finished.PriceValue(stamp));
+                finished.ExtRight = false;
+                active = null;
+                Keep(() => { finished.Delete(); });
+            }
+            if (!working || active != null) return;
+            active = DrwTrendLine.Create(new ChartPoint(stamp, price), new ChartPoint(stamp.AddMinutes(1), price));
+            active.Color = color;
+            active.Size = 2;
+            active.ExtLeft = false;
+            active.ExtRight = true;
         }
 
         private void Keep(Action delete)

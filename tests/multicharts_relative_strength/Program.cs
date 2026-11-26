@@ -20,7 +20,7 @@ static class Program
     }
 
     private static List<string> Run(int direction, bool show, bool permit, bool stopEnabled, bool targetEnabled,
-        Data2Timing timing = Data2Timing.Matched)
+        Data2Timing timing = Data2Timing.Matched, bool bracketExit = false)
     {
         var signal = new OFB_RelStrength_Signal(null) { showValidation = show, TradeDir = permit ? 0 : -direction,
             StopFrac = stopEnabled ? .6 : 0, TgtFrac = targetEnabled ? 1 : 0 };
@@ -88,7 +88,23 @@ static class Program
         if (stopEnabled) expected.Add(direction > 0 ? "RS.LS 20088.00 1" : "RS.SS 19912.00 1");
         if (targetEnabled) expected.Add(direction > 0 ? "RS.LT 20120.00 1" : "RS.ST 19880.00 1");
         Check(signal.OrderCreator.Sent.SequenceEqual(expected), "Entry close submits frozen enabled exits at independent prices.");
-        var flatTime = decision.AddHours(6);
+        int expectedLines = (stopEnabled ? 1 : 0) + (targetEnabled ? 1 : 0);
+        if (show)
+        {
+            Check(signal.DrwTrendLine.Created.Count == expectedLines && signal.DrwTrendLine.Created.All(line =>
+                line.Begin.Time == decision.AddMinutes(1) && line.ExtRight && !line.ExtLeft),
+                "Each enabled exit starts at its first submission and extends right.");
+            if (stopEnabled)
+                Check(signal.DrwTrendLine.Created[0].Begin.Price == fill - direction * 12, "Stop line at the submitted price.");
+            if (targetEnabled)
+                Check(signal.DrwTrendLine.Created.Last().Begin.Price == fill + direction * 20, "Target line at the submitted price.");
+        }
+        Feed(signal, decision.AddMinutes(5), fill, 5000, fill + 1, fill - 1, true);
+        if (show)
+            Check(signal.DrwTrendLine.Created.Count == expectedLines && signal.DrwTrendLine.Created.All(line => line.ExtRight),
+                "Later bracket submissions keep the same extended lines.");
+        var flatTime = bracketExit ? decision.AddMinutes(12) : decision.AddHours(6);
+        if (bracketExit) signal.StrategyInfo.MarketPosition = 0;
         if (timing == Data2Timing.Ahead)
         {
             signal.Bars.Add(flatTime, fill + 1, fill - 1, fill);
@@ -98,17 +114,23 @@ static class Program
         }
         else Feed(signal, flatTime, fill, 5000, fill + 1, fill - 1, true);
         string flat = direction > 0 ? "RS.LF" : "RS.SF";
-        Check(signal.OrderCreator.Sent.Last() == flat + " this close 1", "15:00 flattens even when ES is unavailable.");
+        if (bracketExit)
+            Check(!signal.OrderCreator.Sent.Any(order => order.Contains("this close")), "Observed bracket exit needs no flatten order.");
+        else
+            Check(signal.OrderCreator.Sent.Last() == flat + " this close 1", "15:00 flattens even when ES is unavailable.");
         if (show)
         {
             Check(signal.Output.Written.Any(s => s.Contains("samples=1980/1950") &&
                 s.Contains("NQ close/anchor=" + fill + "/20000") &&
                 s.Contains(timing == Data2Timing.Lagging ? "ES close/anchor=5000.25/5000" : "ES close/anchor=5000/5000")),
                 "Decision Output reports anchors and sample gates.");
-            Check(signal.Output.Written.Any(s => s.Contains("avg RTH range=20") && s.Contains(flat + " this close")),
-                "Output reports 20-point range and flat submission.");
+            Check(signal.Output.Written.Any(s => s.Contains("avg RTH range=20") &&
+                s.Contains(bracketExit ? "Observed MP " + direction + " -> 0" : flat + " this close")),
+                "Output reports 20-point range and position close or flat submission.");
             Check(signal.DrwText.Created.Count > 0 &&
-                signal.DrwTrendLine.Created.Count == (stopEnabled ? 1 : 0) + (targetEnabled ? 1 : 0), "Draws enabled legs only.");
+                signal.DrwTrendLine.Created.Count == expectedLines, "Draws enabled legs only.");
+            Check(signal.DrwTrendLine.Created.All(line => line.End.Time == flatTime && !line.ExtRight &&
+                line.End.Price == line.Begin.Price), "Historical lines end on the exit bar at their original prices.");
             signal.Restart();
             Check(signal.DrwText.Created.All(t => t.Deleted) && signal.DrwTrendLine.Created.All(t => t.Deleted), "Restart clears drawings.");
         }
@@ -132,8 +154,10 @@ static class Program
                 "A missing ES minute uses the last exposed close without stopping entries or exits.");
             Check(matched.SequenceEqual(Run(direction, true, true, true, true, Data2Timing.Ahead)),
                 "An exposed future close uses the matching prior close and preserves the order stream.");
+            Check(Run(direction, false, true, true, true, bracketExit: true).SequenceEqual(
+                Run(direction, true, true, true, true, bracketExit: true)), "Drawing a bracket exit leaves orders unchanged.");
             Run(direction, true, true, true, true, Data2Timing.Unavailable);
         }
-        Console.WriteLine("Relative Strength: long/short, warmup, holidays, alignment, stop/target toggles, order timing and validation on/off passed.");
+        Console.WriteLine("Relative Strength: long/short, warmup, holidays, alignment, stop/target lines through exit, order timing and validation on/off passed.");
     }
 }
