@@ -87,7 +87,7 @@ def test_grid_run_sort_export_reopen_and_normal_report(page, portal, tmp_path):
     playwright.expect(page.locator("#optimization-status")).to_contain_text("COMPLETE")
     page.reload()
     playwright.expect(page.locator("#optimization-results tbody tr")).to_have_count(3)
-    page.get_by_role("link", name="Campaigns", exact=True).click()
+    page.get_by_role("link", name="Strategy Validation", exact=True).click()
     page.get_by_role("link", name="Saved runs", exact=True).click()
     playwright.expect(page.locator("#strategies-screen")).to_be_visible()
     page.get_by_role("link", name="Backtest activity", exact=True).click()

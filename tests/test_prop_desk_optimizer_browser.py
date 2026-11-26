@@ -24,7 +24,7 @@ def test_combination_optimizer_product_journey(page, portal, tmp_path, desk_calc
     desk = page.locator('#prop-desk-screen')
     playwright.expect(desk.get_by_label('Simulation mode')).to_have_count(0)
     playwright.expect(desk.get_by_role('heading', name='Simulation', exact=True)).to_be_visible()
-    picker = desk.get_by_role('combobox', name='Saved strategy')
+    picker = desk.get_by_role('combobox', name='Qualified configuration')
     simulation = desk.get_by_role('button', name='Run simulation', exact=True)
     playwright.expect(simulation).to_be_visible()
     run = desk.get_by_role('button', name='Run Optimise', exact=True)
@@ -67,7 +67,7 @@ def test_combination_optimizer_product_journey(page, portal, tmp_path, desk_calc
 
     endpoint = '**/api/prop-desk/optimizer/subsets'
     playwright.expect(desk.get_by_label('Include linked OOS equity')).to_be_checked()
-    playwright.expect(desk.get_by_role('link', name='OOS report · 2026-01-15 to 2026-01-15')).to_have_count(3)
+    playwright.expect(desk.get_by_role('link', name='Open OOS backtest report · 2026-01-15 to 2026-01-15')).to_have_count(3)
     page.evaluate('scrollTo(0,0)')
     page.screenshot(path=evidence / 'setup-desktop.png', full_page=True)
 

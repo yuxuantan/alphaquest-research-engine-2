@@ -76,7 +76,7 @@ def test_observed_is_default_in_product(page,portal,tmp_path,phase):
     playwright.expect(page.locator('#campaign-run')).to_be_enabled(timeout=30000)
     page.screenshot(path=str(tmp_path/'checked-valid-window.png'),full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
     id=page.url.rsplit('/',1)[-1];prefix=portal['url']+'/api/research-campaigns/'+id
     campaign=page.request.get(prefix).json();snapshots={}
     for kind in ('campaign.json','source_checks.json','results.json','results.csv','report.json','analysis.zip'):
@@ -88,7 +88,7 @@ def test_observed_is_default_in_product(page,portal,tmp_path,phase):
     else:assert row['metrics']['expected_payouts']==row['metrics']['expected_pending_cash']==1500
     page.screenshot(path=str(tmp_path/'saved-window-results.png'),full_page=True)
     posts=[];page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
-    page.reload();playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+    page.reload();playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
     assert posts==[]
     for kind,data in snapshots.items():assert page.request.get(prefix+'/exports/'+kind).body()==data
     (tmp_path/'window-metadata.json').write_text(json.dumps(metadata,indent=2))

@@ -53,7 +53,7 @@
       const saved = await read(endpoint(id)+'/review','PATCH',body);
       if (active === token) { current = saved; render(saved,'mechanic_validation'); message('Review checks saved.'); }
     } catch (error) {
-      if (active === token) { message(error.message+' Reload this workflow to recover the saved checks.'); recovery(id); }
+      if (active === token) { message(error.message+' Reload this validation study to recover the saved checks.'); recovery(id); }
     } finally { if (active === token) { saving = false; if (current?.id === id) enableChecks(); } }
   }
   function enableChecks() {
@@ -73,7 +73,7 @@
   function render(workflow, phase) {
     const saved = workflow.declaration, passed = workflow.status === 'passed';
     get('#mechanic-title').textContent = labels[saved.strategy_id] || saved.strategy_id;
-    get('#mechanic-source').textContent = `${saved.dataset.name} · ${saved.dataset.symbol || 'Unspecified instrument'} · IS ${saved.plan.is_start} → ${saved.plan.is_end} · ${saved.dataset.source_timezone}`;
+    get('#mechanic-source').textContent = `${saved.dataset.name} · ${saved.dataset.symbol || 'Unspecified instrument'} · IS ${saved.plan.is_start} → ${saved.plan.is_end} · OOS ${saved.plan.oos_start} → ${saved.plan.oos_end} · ${saved.dataset.source_timezone}`;
     get('#mechanic-back').href = `#campaigns/${saved.strategy_id}`;
     const navigation = get('#mechanic-phases'); navigation.replaceChildren();
     for (const [index,item] of workflow.phases.entries()) {
@@ -154,7 +154,7 @@
     }
     const outputs = node('div',undefined,'mechanic-downloads');
     link(outputs,'Job progress / history',`#jobs/mechanic_validation/${workflow.run_id}`);
-    link(outputs,'Open backtest report',`#backtests/report/${workflow.run_id}`);
+    link(outputs,'Open IS backtest report',`#backtests/report/${workflow.run_id}`);
     link(outputs,'Trades CSV ↓',`/api/backtests/${workflow.run_id}/exports/trades`);
     link(outputs,'Saved review JSON ↓',endpoint(workflow.id)+'/download'); host.append(outputs);
     host.append(node('p', passed ? `Mechanics and MC parity confirmed by the user on ${workflow.review.confirmed_at_utc}. IS Broad is now available.` : 'Compare against MultiCharts using the same data, dates, timezone, parameters and costs. Confirm MC parity for each outcome, then MC parity and execution correctness for each sampled trade.','workflow-notice'));
@@ -209,8 +209,8 @@
     const match = route();
     if (!match) {
       if (location.hash.startsWith('#campaigns/workflows/')) {
-        message('Unknown campaign phase or workflow URL.');
-        get('#mechanic-title').textContent='Campaign workflow';
+        message('Unknown validation study or stage.');
+        get('#mechanic-title').textContent='Validation study';
         get('#mechanic-source').textContent='';
         get('#mechanic-phases').replaceChildren();
         get('#mechanic-content').replaceChildren();

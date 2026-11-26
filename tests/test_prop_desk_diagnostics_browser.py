@@ -78,7 +78,7 @@ def test_strategy_diagnostics_product(page, portal, tmp_path, monkeypatch, desk_
         playwright.expect(page.locator('#report-summary')).to_be_visible()
         page.locator('.sidebar').get_by_role('link', name='Prop Desk', exact=True).click()
         desk = page.locator('#prop-desk-screen')
-        picker = desk.get_by_role('combobox', name='Saved strategy')
+        picker = desk.get_by_role('combobox', name='Qualified configuration')
         for source in (first, second):
             picker.select_option(source)
             desk.get_by_role('button', name='Add to portfolio').click()

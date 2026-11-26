@@ -7,10 +7,10 @@ instrument settings, and enter capital, slippage and commissions. Account and
 execution settings are fixed across trials. Every strategy parameter has
 **Start value**, **End value**, **Step** and **Step count** columns.
 
-Keep start and end equal on every row to run one backtest. A grid generating one
+Keep start and end equal on every row to use **Run backtest**. A grid generating one
 combination opens its normal report with live progress when automatic prop reports
 are enabled. With automatic reports disabled it saves a one-trial batch instead. Widen ranges for more
-combinations; the results open as a sortable batch table with links to individual
+combinations and use **Run parameter search**. The results open as a sortable batch table with links to individual
 reports. The same grid drafts, costs, benchmark settings and saved-result reuse
 control apply in both cases. There is no second parameter form to keep in sync.
 Both submit to `/api/backtests`; the server's single-report request remains
@@ -65,7 +65,7 @@ including valid HHMM times and coupled pivot/history settings. For example,
 numeric stepping from 0950 through 1000 by 25 produces an invalid intermediate
 0975 and is rejected; HHMM fields are numeric inputs, not elapsed minutes.
 
-**Start backtests** runs the Cartesian product in definition order. The portal
+**Run parameter search** runs the Cartesian product in definition order. The portal
 shows the product of step counts before submission; jobs are limited to 10,000
 combinations. Only Exhaustive is supported. Choose **Parallel backtests** below
 the grid: **1** runs serially; higher values compute trials in separate Python
@@ -851,7 +851,7 @@ are bounded software evidence, not production throughput forecasts.
 ## Independent phase research from saved trials
 
 After an IS grid completes, open an individual report → **Configure prop
-analysis** → **Create Evaluation campaign** or **Create Funded campaign**. Use
+analysis** → **New Evaluation sizing study** or **New Funded sizing study**. Use
 **Add saved source** to include saved trials or complete optimization jobs from
 other strategies. Trial numbers refer to saved trial IDs, not sorted row
 positions. Explicit whole-MNQ size lists and a maximum of 128 candidates bound

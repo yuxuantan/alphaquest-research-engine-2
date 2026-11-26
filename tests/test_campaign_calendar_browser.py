@@ -45,7 +45,7 @@ def test_automatic_calendar_from_saved_report(page, portal, tmp_path, phase, end
     playwright.expect(page.locator('#campaign-status')).to_contain_text(end)
     page.screenshot(path=str(tmp_path/'checked-auto-calendar.png'), full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
     id = page.url.rsplit('/',1)[-1]
     prefix = portal['url']+'/api/research-campaigns/'+id
     campaign = page.request.get(prefix).json()
@@ -74,7 +74,7 @@ def test_automatic_calendar_from_saved_report(page, portal, tmp_path, phase, end
     posts = []
     page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.reload()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
     assert posts == []
     for kind,data in snapshots.items():
         assert page.request.get(prefix+'/exports/'+kind).body() == data

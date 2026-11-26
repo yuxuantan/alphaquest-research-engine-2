@@ -64,7 +64,7 @@
       workers.onchange=()=>{preview=null;run.disabled=true;count.textContent='Worker setting changed. Calculate iterations again.';};
       const count=node('p','Calculate the number of parameter combinations.','optimization-count');count.id='broad-count';fieldset.append(count);
       const calculate=node('button','Calculate iterations','button secondary');calculate.type='button';calculate.id='broad-preview';
-      const run=node('button','Run IS Broad →','button primary');run.type='submit';run.id='broad-run';run.disabled=true;
+      const run=node('button','Run parameter search →','button primary');run.type='submit';run.id='broad-run';run.disabled=true;
       const controls=node('div',undefined,'mechanic-downloads');controls.append(calculate,run);fieldset.append(controls);
       const notice=node('p');notice.id='broad-status';notice.setAttribute('role','status');config.append(notice);
       const integer=value=>{if(!/^-?\d+$/.test(value)||!Number.isSafeInteger(Number(value)))throw Error('Enter whole numbers within the safe integer range.');return Number(value);};
@@ -78,8 +78,8 @@
       };
       form.onsubmit=async event=>{
         event.preventDefault();if(busy||!preview||!form.reportValidity())return;busy=true;fieldset.disabled=true;
-        const finish=window.portalLoading.begin(notice,{label:'Starting backtest…'});
-        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;outputs.hidden=false;config.before(outputs);config.open=false;progress.textContent='Backtest submitted. Loading progress…';progress.tabIndex=-1;progress.focus();if(requestedJob&&requestedJob!==job.id){location.replace(`#campaigns/workflows/${workflow.id}/is_broad?job=${job.id}`);return;}notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
+        const finish=window.portalLoading.begin(notice,{label:'Starting parameter search…'});
+        try{job=await read(base+'/run','POST',{...requestGrid(),preview_token:preview.preview_token,revision:preview.revision});if(!alive())return;preview=null;run.disabled=true;outputs.hidden=false;config.before(outputs);config.open=false;progress.textContent='Parameter search submitted. Loading progress…';progress.tabIndex=-1;progress.focus();if(requestedJob&&requestedJob!==job.id){location.replace(`#campaigns/workflows/${workflow.id}/is_broad?job=${job.id}`);return;}notice.textContent='IS Broad job started. You can leave this page and follow it in Job history.';await refresh();}
         catch(error){if(alive())notice.textContent=error.message;}
         finally{finish();busy=false;if(alive())fieldset.disabled=!!state.archived||!!state.confirmed_at_utc||['queued','running'].includes(job?.status);}
       };
@@ -109,14 +109,14 @@
       const pages=node('div',undefined,'report-pagination'),previous=node('button','Previous','button secondary'),next=node('button','Next','button secondary'),pageInfo=node('span');
       previous.type=next.type='button';previous.onclick=()=>{offset=Math.max(0,offset-50);refresh();};next.onclick=()=>{offset+=50;refresh();};pages.append(previous,pageInfo,next);outputs.append(pages);
       const selected=node('p');selected.id='broad-selected';outputs.append(selected);
-      const confirm=node('button','Confirm configs and continue to IS Narrow →','button primary');confirm.id='broad-confirm';confirm.type='button';outputs.append(confirm);
+      const confirm=node('button','Confirm selection for IS Narrow →','button primary');confirm.id='broad-confirm';confirm.type='button';outputs.append(confirm);
       const selectionNotice=node('p');selectionNotice.id='broad-selection-status';selectionNotice.setAttribute('role','status');outputs.append(selectionNotice);
       const frozen=node('div');frozen.id='broad-frozen';outputs.append(frozen);
       let fetching=0,saving=false;
       function selectionState(){
-        selected.textContent=`${state.selected_trials.length} / 2 configurations selected${state.selected_trials.length?' · trials '+state.selected_trials.join(', '):''}`;
+        selected.textContent=`${state.selected_trials.length} / 2 configurations selected${state.selected_trials.length?' · configurations '+state.selected_trials.join(', '):''}`;
         confirm.disabled=!!state.archived||!!state.confirmed_at_utc||!state.selected_trials.length||job?.status!=='complete'||saving;
-        confirm.textContent=state.confirmed_at_utc?'Configurations confirmed': 'Confirm configs and continue to IS Narrow →';
+        confirm.textContent=state.confirmed_at_utc?'Configurations confirmed': 'Confirm selection for IS Narrow →';
         for(const input of table.querySelectorAll('input[data-select-trial]'))input.disabled=!!state.archived||saving||!!state.confirmed_at_utc||job?.status!=='complete'||input.dataset.eligible!=='true'||(!input.checked&&state.selected_trials.length>=2);
       }
       async function select(trial,checked){
@@ -154,14 +154,14 @@
           if(job){action(links,'Job history / progress',`#jobs/backtest_batch/${job.id}`);action(links,'Results CSV ↓',`/api/backtests/batches/${job.id}/exports/results`);action(links,'Saved IS Broad package ↓',forRun('/download'));}
           if(!job){panel.hidden=true;table.tHead.replaceChildren();table.tBodies[0].replaceChildren();previous.disabled=next.disabled=true;pageInfo.textContent='No results yet';selectionState();return;}
           const varying=Object.keys(job.axes).filter(name=>job.axes[name].length>1);
-          const headers=[['select','Select'],['eligible','Eligibility'],['trial','Trial'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,metricLabel(name)]),['run_id','Backtest report']];
+          const headers=[['select','Select configurations'],['eligible','Eligibility'],['trial','Tested configuration'],...Object.keys(job.axes).map(name=>['param.'+name,label(name)]),...job.metric_columns.map(name=>[name,metricLabel(name)]),['run_id','Backtest report']];
           const head=node('tr');
           for(const [key,title] of headers){const th=node('th');th.dataset.column=key;th.scope='col';
             if(['select','eligible'].includes(key))th.textContent=title;else{const button=node('button',title+(sort===key?(direction==='asc'?' ↑':' ↓'):' ↕'));button.type='button';button.onclick=()=>{direction=sort===key&&direction==='asc'?'desc':'asc';sort=key;offset=0;refresh();};th.append(button);}head.append(th);}
           table.tHead.replaceChildren(head);table.tBodies[0].replaceChildren();
           for(const row of page.items){const tr=node('tr');tr.dataset.trial=row.trial;if(!row.qualifies)tr.className='broad-ineligible';
             for(const [key] of headers){const td=node('td');td.dataset.column=key;
-              if(key==='select'){const input=node('input');input.type='checkbox';input.dataset.selectTrial=row.trial;input.dataset.eligible=String(row.qualifies);input.setAttribute('aria-label',`Select trial ${row.trial}`);input.checked=state.selected_trials.includes(row.trial);input.onchange=()=>select(row.trial,input.checked);td.append(input);}
+              if(key==='select'){const input=node('input');input.type='checkbox';input.dataset.selectTrial=row.trial;input.dataset.eligible=String(row.qualifies);input.setAttribute('aria-label',`Select configuration ${row.trial}`);input.checked=state.selected_trials.includes(row.trial);input.onchange=()=>select(row.trial,input.checked);td.append(input);}
               else if(key==='eligible'){
                 const info=node('details',undefined,'broad-row-criteria'),measured=row.admission||row.screening;
                 info.append(node('summary',row.legacy_screening?'Historical rule':!measured?'Not qualified · rerun required':measured.status==='insufficient_evidence'?'Insufficient evidence':row.qualifies?`Qualified · ${measured.checks.length} / ${measured.checks.length} passed`:`Not qualified · ${measured.checks.filter(c=>c.passed).length} / ${measured.checks.length} passed`));
@@ -169,7 +169,7 @@
                 else info.append(node('p','This historical grid only checked positive net profit. New selections require a grid with measured screening evidence.'));
                 td.append(info);
               }
-              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open report',`#backtests/report/${row.run_id}`);window.attachRiskDiagnostics(td,row.run_id);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
+              else if(key==='run_id'){if(row.backtest_deleted)td.textContent='Report unavailable';else{action(td,'Open IS backtest report',`#backtests/report/${row.run_id}`);window.attachRiskDiagnostics(td,row.run_id);if(row.screening){td.append(node('br'));action(td,'Cost-stress report',`#backtests/report/${row.screening.cost_stress.run_id}`);td.append(node('br'));action(td,'Screening measurements ↓',`/api/backtests/${row.run_id}/exports/is_screening`);}}}
               else td.textContent=key==='trial'?String(row.trial):key.startsWith('param.')?String(row.parameters[key.slice(6)]):metricValue(key,row.metrics[key]);tr.append(td);
             }table.tBodies[0].append(tr);}
           columns.defaultFrozen=['select','trial',...varying.map(name=>'param.'+name)];

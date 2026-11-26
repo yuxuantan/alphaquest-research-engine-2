@@ -66,9 +66,11 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     playwright.expect(page.get_by_label('Hold minutes local plateau step',exact=True)).to_have_count(0)
     page.locator('#narrow-preview').click()
     playwright.expect(page.locator('#narrow-count')).to_have_text('4 iterations · IS only')
+    playwright.expect(page.locator('#narrow-run')).to_have_text('Run parameter search →')
     page.locator('#narrow-run').click()
     playwright.expect(page.locator('#narrow-progress')).to_contain_text('COMPLETE · 4 / 4 trials',timeout=30000)
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
+    playwright.expect(page.locator('#narrow-confirm')).to_have_text('Confirm selection for OOS →')
     playwright.expect(page.locator('#narrow-selected')).to_contain_text('0 / 2')
     playwright.expect(page.locator('#narrow-policy-notice')).to_contain_text('Plateau policy is-narrow-v4')
     assert page.request.get(prefix+'/narrow/results?broad_trial=1').json()['all_branches_complete'] is False
@@ -115,13 +117,13 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     diagnostics.locator(':scope > summary').click()
     for trial in (2,3):
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
-            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
+            page.get_by_role('checkbox',name=f'Select configuration {trial}').check()
     with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
         page.locator('#narrow-clear-selection').click()
     playwright.expect(page.locator('#narrow-selected')).to_contain_text('0 / 2')
     for trial in (2,3):
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
-            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
+            page.get_by_role('checkbox',name=f'Select configuration {trial}').check()
     page.locator('#narrow-confirm').click()
     playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
     playwright.expect(page.locator('#narrow-clear-selection')).to_be_disabled()
@@ -168,13 +170,13 @@ def test_narrow_portal_two_broad_branches_columns_and_oos_handoff(page,portal,tm
     row.locator('.broad-row-criteria summary').click()
     playwright.expect(row.locator('.broad-row-criteria')).to_contain_text('Search-adjusted daily net lower bound')
     playwright.expect(row.locator('.broad-row-criteria')).to_contain_text('Bonferroni family of 6 attempted trials')
-    playwright.expect(page.get_by_role('checkbox',name='Select Narrow trial 1')).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 1')).to_be_disabled()
     assert page.request.get(prefix+'/narrow/results?broad_trial=1').json()['family_size']==6
     page.locator('#narrow-broad-trial').select_option('2')
     playwright.expect(page.locator('#narrow-results tbody tr')).to_have_count(4)
     for trial in (2,3):
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
-            page.get_by_role('checkbox',name=f'Select Narrow trial {trial}').check()
+            page.get_by_role('checkbox',name=f'Select configuration {trial}').check()
     page.locator('#narrow-confirm').click()
     playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
     page.reload()
@@ -233,7 +235,7 @@ def test_narrow_portal_explicit_local_refinement_and_saved_result(page,portal,tm
     results=page.request.get(prefix+'/narrow/results?broad_trial=1').json()
     eligible=next(row['trial'] for row in results['items'] if row['qualifies'])
     with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/narrow/selection')):
-        page.get_by_role('checkbox',name=f'Select Narrow trial {eligible}').check()
+        page.get_by_role('checkbox',name=f'Select configuration {eligible}').check()
     playwright.expect(page.locator('#narrow-confirm')).to_be_enabled()
     page.locator('#narrow-confirm').click()
     playwright.expect(page.locator('#narrow-confirm')).to_have_text('Narrow choices confirmed')
@@ -283,7 +285,7 @@ def test_tested_grid_corner_qualifies_without_additional_backtests(page,portal,t
     playwright.expect(corner).to_contain_text('Tested spacing: Green bar count 1, Hold minutes 2')
     playwright.expect(corner).to_contain_text('net 16560.00 CU')
     playwright.expect(corner).to_contain_text('retains 176.92%')
-    playwright.expect(page.get_by_role('checkbox',name='Select Narrow trial 5')).to_be_enabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 5')).to_be_enabled()
     with httpx.Client(base_url=portal['url'],timeout=40) as client:
         results=client.get(prefix+'/narrow/results',params={'broad_trial':1}).json()
         assert client.get('/api/jobs').json()['total']==before

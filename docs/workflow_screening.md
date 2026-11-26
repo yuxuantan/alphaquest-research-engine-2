@@ -1,4 +1,8 @@
-# Campaign stage passing criteria
+# Strategy Validation passing criteria
+
+Open **Strategy Validation** and select a strategy. Choose **New validation
+study** or reopen a saved study by its dataset and IS/OOS dates. The API and
+historical reports identify a validation study by its campaign workflow ID.
 
 User-approved policy, updated 2026-11-11, on `epic/revamp-workflow`. IS Broad,
 IS Narrow, and frozen-family OOS assessment are implemented.

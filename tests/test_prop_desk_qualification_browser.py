@@ -12,9 +12,9 @@ from test_prop_sim import qualified_source
 def test_prop_desk_qualification_controls_picker_and_launch(page, portal, tmp_path):
     root = portal['url']
     desk = page.locator('#prop-desk-screen')
-    picker = desk.get_by_role('combobox', name='Saved strategy')
+    picker = desk.get_by_role('combobox', name='Qualified configuration')
     page.goto(root + '/#prop-desk')
-    playwright.expect(desk.get_by_text('No qualified strategies.', exact=False)).to_be_visible()
+    playwright.expect(desk.get_by_text('No qualified configurations.', exact=False)).to_be_visible()
     playwright.expect(desk.get_by_role('button', name='Run simulation')).to_be_disabled()
     evidence = tmp_path / 'prop-desk-qualification-evidence'
     evidence.mkdir()
@@ -60,8 +60,10 @@ def test_prop_desk_qualification_controls_picker_and_launch(page, portal, tmp_pa
         playwright.expect(picker).to_be_enabled(timeout=60000)
         playwright.expect(picker.locator(f'option[value="{excluded}"]')).to_have_count(0)
         picker.select_option(selected)
+        playwright.expect(desk.get_by_role('link', name='Open IS backtest report')).to_have_attribute(
+            'href', f'#backtests/report/{selected}')
         desk.get_by_role('button', name='Add to portfolio').click()
-        playwright.expect(desk.get_by_role('link', name='OOS report', exact=False)).to_be_visible()
+        playwright.expect(desk.get_by_role('link', name='Open OOS backtest report', exact=False)).to_be_visible()
         page.screenshot(path=evidence/'qualified-desktop.png', full_page=True)
         with page.expect_response('**/api/prop-desk/basket') as launched:
             desk.get_by_role('button', name='Run simulation').click()

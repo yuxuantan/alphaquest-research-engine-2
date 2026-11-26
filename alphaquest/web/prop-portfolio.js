@@ -132,11 +132,11 @@
     loading.remove();
     const form=node('form',undefined,'panel prop-portfolio-panel');form.id='portfolio-form';host.append(form);
     const choices=node('fieldset',undefined,'portfolio-picks');
-    choices.append(node('legend','Strategies to compare'),node('p','Choose up to four configurations from the same dataset. Shared-account signal ties follow the order shown.','field-help'));
+    choices.append(node('legend','Configurations to compare'),node('p','Choose up to four configurations from the same dataset. Shared-account signal ties follow the order shown.','field-help'));
     const picks=[];
-    const pickerLabel=node('label','Saved strategy'),picker=node('select'),add=node('button','Add to comparison','button secondary');
+    const pickerLabel=node('label','Qualified configuration'),picker=node('select'),add=node('button','Add to comparison','button secondary');
     picker.id='portfolio-strategy-picker';
-    picker.add(new Option('Choose a qualified strategy',''));
+    picker.add(new Option('Choose a qualified configuration',''));
     picker.disabled=true;add.disabled=true;add.type='button';
     pickerLabel.append(picker);
     const pickerActions=node('div',undefined,'prop-desk-actions');pickerActions.append(pickerLabel,add);choices.append(pickerActions);
@@ -153,11 +153,11 @@
       input.type='checkbox';input.id='portfolio-source-'+index;input.className='portfolio-source';
       reason.id=input.id+'-reason';input.setAttribute('aria-describedby',reason.id);
       copy.append(reason);
-      if(source.portfolio_parity)copy.append(node('small','Replay parity verified against the qualified campaign.'));
+      if(source.portfolio_parity)copy.append(node('small','Replay parity verified against the validation study.'));
       label.append(input,copy);choices.append(label);
       picker.add(new Option(`${sourceName(source)} · ${sourceDetails(source)}`,String(index)));
       if(source.portfolio_ineligible_reason?.includes('current strategy implementation'))
-        link(choices,'View saved campaign',
+        link(choices,'View validation study',
           '#campaigns/workflows/'+source.selection.workflow_id.replaceAll('-','')+'/oos');
       picks.push({input,source,reason});
     }

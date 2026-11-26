@@ -68,7 +68,7 @@ def test_imported_causal_sizing_campaign_membership_decisions_downloads_and_reop
     playwright.expect(page.locator('.campaign-checks')).to_contain_text('Every declared candidate is retained')
     page.screenshot(path=str(tmp_path/'checked-sizing-candidates.png'), full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign', timeout=60000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study', timeout=60000)
     campaign_id = page.url.rsplit('/', 1)[1]
     base = url+'/api/research-campaigns/'+campaign_id
     campaign = page.request.get(base).json()

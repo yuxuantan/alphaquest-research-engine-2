@@ -18,7 +18,7 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     playwright.expect(page.locator('main')).to_be_focused()
     assert page.url==portal['url']+'/'
     nav = page.get_by_role('navigation', name='Main navigation', exact=True)
-    destinations = ['Dataset', 'Research', 'Campaigns', 'Prop Desk']
+    destinations = ['Dataset', 'Research', 'Strategy Validation', 'Prop Desk']
     playwright.expect(nav.locator('a')).to_have_count(len(destinations))
     assert nav.locator('a').evaluate_all('(items) => items.map(item => item.getAttribute("aria-label"))') == destinations
     playwright.expect(page.locator('#dataset-count')).to_have_text('2')
@@ -32,13 +32,14 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     playwright.expect(page.locator('#research-screen button')).to_have_count(0)
     assert not any('/api/research-workspace' in url for url in requests)
     page.screenshot(path=str(tmp_path/'research.png'), full_page=True)
-    nav.get_by_role('link', name='Campaigns', exact=True).click()
+    nav.get_by_role('link', name='Strategy Validation', exact=True).click()
+    playwright.expect(page.get_by_role('heading', name='Choose a strategy')).to_be_visible()
     playwright.expect(page.locator('#workflow-campaign-detail')).to_contain_text('A breakout of the day’s opening range')
     page.get_by_role('link', name='Twin continuation twin_continuation', exact=True).click()
     detail = page.locator('#workflow-campaign-detail')
     playwright.expect(detail).to_contain_text('Confirmed swing breakouts and morning momentum')
     playwright.expect(detail.locator('.workflow-dataset')).to_have_count(0)
-    playwright.expect(detail).to_contain_text('No saved datasets for this campaign')
+    playwright.expect(detail).to_contain_text('No validation studies or saved backtests for this strategy')
     notes=detail.locator('.campaign-strategy-notes')
     assert not notes.evaluate('details => details.open')
     notes.locator(':scope > summary').click()
@@ -50,7 +51,7 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     page.go_back()
     playwright.expect(detail.locator('h2')).to_have_text('ORB + VWAP pullback')
     page.goto(portal['url']+'/#campaigns/missing')
-    playwright.expect(detail).to_contain_text('Campaign not found')
+    playwright.expect(detail).to_contain_text('Strategy not found')
     page.goto(portal['url']+'/#research')
     playwright.expect(page.locator('#research-screen')).to_be_visible()
     assert mutations == []
@@ -67,7 +68,7 @@ def test_overnight_bias_orb_explains_strategy_before_dataset_selection(page, por
     playwright.expect(overview.get_by_role('heading', name='How it trades')).to_be_visible()
     playwright.expect(overview).to_contain_text('at least 67%')
     playwright.expect(overview).to_contain_text('35 points to the stop and 85 to the target')
-    playwright.expect(datasets).to_contain_text('No saved datasets for this campaign')
+    playwright.expect(datasets).to_contain_text('No validation studies or saved backtests for this strategy')
     assert notes.bounding_box()['y'] < datasets.bounding_box()['y']
 
     page.set_viewport_size({'width': 390, 'height': 844})
@@ -78,7 +79,7 @@ def test_overnight_bias_orb_explains_strategy_before_dataset_selection(page, por
     playwright.expect(notes).to_contain_text('250 completed 15-minute candles')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
 
-    page.get_by_role('link', name='New backtest →', exact=True).click()
+    page.get_by_role('link', name='New validation study →', exact=True).click()
     playwright.expect(page.locator('#backtest-strategy')).to_have_value('overnight_bias_orb')
 
 
@@ -97,12 +98,12 @@ def test_prop_sim_empty_qualification_boundary_and_mobile(page, portal, tmp_path
     page.screenshot(path=str(tmp_path/'prop-sim-mobile.png'), full_page=True)
     nav = page.get_by_role('navigation', name='Mobile navigation', exact=True)
     playwright.expect(nav.locator('a')).to_have_count(4)
-    for name, selector in [('Research','#research-screen'),('Campaigns','#campaigns-screen'),('Prop Desk','#prop-desk-screen'),('Dataset','#datasets-screen')]:
+    for name, selector in [('Research','#research-screen'),('Strategy Validation','#campaigns-screen'),('Prop Desk','#prop-desk-screen'),('Dataset','#datasets-screen')]:
         nav.get_by_role('link',name=name,exact=True).click()
         playwright.expect(page.locator(selector)).to_be_visible()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         playwright.expect(nav.locator('[aria-current="page"]')).to_have_text(name)
-        if name == 'Campaigns':
+        if name == 'Strategy Validation':
             page.screenshot(path=str(tmp_path/'campaigns-mobile.png'), full_page=True)
     page.get_by_role('link',name='Job history',exact=True).click()
     playwright.expect(page.locator('.job-history-link')).to_have_attribute('aria-current','page')
@@ -126,7 +127,10 @@ def test_campaign_dataset_opens_latest_selectable_phase(page, portal):
         campaign = portal['url'] + '/#campaigns/consecutive_green_hold'
         page.goto(campaign)
         dataset = page.locator('.workflow-dataset').filter(has_text='SYNTHETIC mechanics')
-        link = dataset.get_by_role('link', name='SYNTHETIC mechanics', exact=True)
+        link = dataset.get_by_role('link', name='Consecutive Green Hold · SYNTHETIC mechanics', exact=True)
+        plan = workflow['declaration']['plan']
+        playwright.expect(dataset).to_contain_text(f'IS {plan["is_start"]} → {plan["is_end"]}')
+        playwright.expect(dataset).to_contain_text(f'OOS {plan["oos_start"]} → {plan["oos_end"]}')
         playwright.expect(link).to_have_attribute('href', f'#campaigns/workflows/{workflow["id"]}/mechanic_validation')
         link.click()
         playwright.expect(page).to_have_url(portal['url'] + f'/#campaigns/workflows/{workflow["id"]}/mechanic_validation')
@@ -148,7 +152,7 @@ def test_campaign_dataset_opens_latest_selectable_phase(page, portal):
         page.goto(campaign)
         narrow_link = page.locator('.workflow-dataset').filter(
             has_text='SYNTHETIC 120-day narrow oracle').get_by_role(
-                'link', name='SYNTHETIC 120-day narrow oracle', exact=True)
+                'link', name='Consecutive Green Hold · SYNTHETIC 120-day narrow oracle', exact=True)
         expected = f'#campaigns/workflows/{narrow["id"]}/is_narrow?broad_trial=1'
         playwright.expect(narrow_link).to_have_attribute('href', expected)
         narrow_link.click()

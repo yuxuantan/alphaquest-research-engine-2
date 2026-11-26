@@ -143,7 +143,7 @@
     for(const id of ['prop-block','prop-holdout','prop-slots'])$('#'+id).closest('label').hidden=cash;
     $('#prop-fee-fields').hidden=false;$('#prop-activation-wait').closest('label').hidden=!cash;$('#prop-fee-note-label').hidden=!cash;
     $('#prop-method-help').textContent=cash?'Replay one initially unfunded slot with exact monthly fee spending and separately dated trader receipts.':'Choose evaluation and funded sizes using the existing annualized model, with the last 30% of source history held out internally.';
-    if(externalSource)$('#prop-method-help').textContent='This form runs the legacy annualized analysis. Eligible imported IS sources can also use the independent phase campaign controls above, including explicit sizing policies. Source checks retain declared sessions, actual costs and observed risk limitations.';
+    if(externalSource)$('#prop-method-help').textContent='This form runs the legacy annualized analysis. Eligible imported IS sources can also use the independent sizing study controls above, including explicit sizing policies. Source checks retain declared sessions, actual costs and observed risk limitations.';
     timingChoices();updateObservedWindow();purchaseHelp();
   }
   $('#prop-method').addEventListener('change',()=>{if($('#prop-method').value!=='annualized')$('#prop-holdout').value='';showMethodFields();invalidate();});

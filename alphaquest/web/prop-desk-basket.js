@@ -90,7 +90,7 @@
         controls.append(label, remove);
         row.append(controls);
         if (member.oos_backtest_id) {
-          const linked = node('a', 'OOS report · ' + member.oosDates, 'field-help');
+          const linked = node('a', 'Open OOS backtest report · ' + member.oosDates, 'field-help');
           linked.href = '#backtests/report/' + member.oos_backtest_id;
           row.append(linked);
         }

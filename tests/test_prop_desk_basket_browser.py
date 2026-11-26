@@ -22,7 +22,7 @@ def test_basket_product_equity_sizing_and_reopen(page, portal, tmp_path, desk_ca
     desk = page.locator('#prop-desk-screen')
     playwright.expect(desk.get_by_label('Simulation mode')).to_have_count(0)
     playwright.expect(desk.get_by_role('heading', name='Simulation', exact=True)).to_be_visible()
-    picker = desk.get_by_role('combobox', name='Saved strategy')
+    picker = desk.get_by_role('combobox', name='Qualified configuration')
     check = desk.get_by_role('button', name='Check source', exact=True)
     run = desk.get_by_role('button', name='Run simulation', exact=True)
     playwright.expect(check).to_have_count(0)
@@ -45,7 +45,7 @@ def test_basket_product_equity_sizing_and_reopen(page, portal, tmp_path, desk_ca
     desk.get_by_label('Minimum total MNQ').fill('3')
     desk.get_by_label('Maximum total MNQ').fill('5')
     playwright.expect(desk.get_by_label('Include linked OOS equity')).to_be_checked()
-    playwright.expect(desk.get_by_role('link', name='OOS report · 2026-01-15 to 2026-01-15')).to_have_count(2)
+    playwright.expect(desk.get_by_role('link', name='Open OOS backtest report · 2026-01-15 to 2026-01-15')).to_have_count(2)
     page.evaluate('scrollTo(0,0)')
     page.screenshot(path=evidence / 'setup-desktop.png', full_page=True)
     ids = {}

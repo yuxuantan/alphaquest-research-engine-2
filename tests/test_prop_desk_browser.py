@@ -23,7 +23,7 @@ def test_fixed_prop_desk_product_journey(page, portal, tmp_path, desk_calculator
     page.locator('.sidebar').get_by_role('link', name='Prop Desk', exact=True).click()
     desk = page.locator('#prop-desk-screen')
     playwright.expect(page.get_by_role('heading', name='Prop Desk.', exact=True)).to_be_visible()
-    source = desk.get_by_role('combobox', name='Saved strategy')
+    source = desk.get_by_role('combobox', name='Qualified configuration')
     check = desk.get_by_role('button', name='Check source', exact=True)
     run = desk.get_by_role('button', name='Run simulation', exact=True)
     status = desk.locator('#prop-desk-check-status')

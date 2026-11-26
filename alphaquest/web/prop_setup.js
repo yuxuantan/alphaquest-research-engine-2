@@ -47,7 +47,7 @@
       const grid=near('#campaign-paths')?.parentElement;
       if(grid){for(const child of grid.children)if(!child.dataset.setupStep)mark(child,'accounts');
         advanced(grid,'Historical sampling and reproducible seeds',['#campaign-paths','#campaign-seed','#campaign-block','#campaign-start'].map(near));}
-      const h=$(hosts[goal]).querySelector('h2');if(h&&h.textContent!=='Compare saved candidates for one prop phase')h.textContent='Compare saved candidates for one prop phase';
+      const h=$(hosts[goal]).querySelector('h2');if(h&&h.textContent!=='Compare sizes for Evaluation or Funded')h.textContent='Compare sizes for Evaluation or Funded';
       label($('#campaign-phase'),'Which phase are you comparing?');label($('#campaign-execution'),'How should account behavior be simulated?');
     }else if(goal==='inspect'){
       for(const child of form.children)mark(child,child.tagName==='FIELDSET'?'sources accounts':'review');
@@ -174,7 +174,7 @@
         await initialized.get(key);if(!current()||attempt!==revision)return;
         if((key==='legacy'||key==='budget')){const method=$('#prop-method'),expected=key==='budget'?'budgeted_lifecycle':'annualized';if(method.value!==expected){method.value=expected;method.dispatchEvent(new Event('change',{bubbles:true}));}}
         const d=outer[key]?$(outer[key]):null;if(d)d.open=true;
-        for(const history of host.querySelectorAll('[data-setup-history]')){const wrap=node('details');wrap.dataset.setupTaskHistory=key;wrap.append(node('summary',key==='research'?'Previous strategy studies':'Previous phase campaigns'),history);$('#prop-previous').append(wrap);}
+        for(const history of host.querySelectorAll('[data-setup-history]')){const wrap=node('details');wrap.dataset.setupTaskHistory=key;wrap.append(node('summary',key==='research'?'Previous strategy studies':'Previous sizing studies'),history);$('#prop-previous').append(wrap);}
         const form=$(forms[key]);if(!form)throw Error(host.textContent||'This task is unavailable for the source.');
         if(!listenerForms.has(form)){listenerForms.add(form);form.addEventListener('click',event=>{if(['robust-preview','robust-run'].includes(event.target.closest('button')?.id)&&!researchIntentValid()){event.preventDefault();event.stopImmediatePropagation();go('accounts');message.textContent='Enable Evaluation or Funded, or explicitly choose qualification only.';}},{capture:true,signal});for(const event of ['input','change'])form.addEventListener(event,()=>queueMicrotask(update),{signal});
           form.addEventListener('invalid',event=>{const target=event.target,part=target.closest('[data-setup-step]');if(part)step=part.dataset.setupStep.split(' ')[0];for(let p=target.parentElement;p&&p!==host;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;update();message.textContent='Review the highlighted setting: '+controlLabel(target);},{capture:true,signal});}

@@ -1,16 +1,16 @@
-# Permanently delete one campaign dataset workflow
+# Delete a saved validation study and its results
 
 Implemented 2026-11-16. This replaces reversible **Remove dataset link**. The
-campaign/strategy and original dataset files cannot be deleted by this feature.
+strategy and original dataset files are retained.
 
 ## Use it
 
-1. Open **Campaigns → select a campaign**. Each workflow card shows its creation
-   date, short workflow ID and an expandable saved-version identifier. Two cards
-   with the same dataset name can represent independent workflows on one upload.
-2. On the intended card, choose **Delete workflow and results…**. Only that
-   workflow ID is selected. Other workflows using the same dataset are preserved.
-3. Review the exact workflow, batch, report and file lists. Downstream Prop Sim,
+1. Open **Strategy Validation** and select a strategy. Each saved study card
+   shows the dataset, IS and OOS dates, creation date, and short study ID.
+   Expand **Validation study details** to see the saved version.
+2. On the intended card, choose **Delete validation study and results…**. The preview
+   identifies that validation study by its saved ID (`workflow_id` in the API).
+3. Review the exact validation study, batch, report and file lists. Downstream Prop Sim,
    Monte Carlo and portfolio analyses to be deleted are explicitly listed and
    linked. **Dependent research studies that will also be deleted** identifies
    each nested study by name, creation date, state, ID, saved checkpoint count
@@ -20,8 +20,8 @@ campaign/strategy and original dataset files cannot be deleted by this feature.
    preview; its other source workflows and datasets remain intact.
 4. Cancel to leave everything unchanged. To proceed, acknowledge irreversible
    deletion and choose **Permanently delete**. There is no Undo or Restore.
-5. The selected workflow, its unshared evidence files and listed downstream
-   results disappear from Campaigns, saved results and Job history. Reloading does
+5. The selected validation study, its unshared evidence files and listed downstream
+   results disappear from Strategy Validation, saved results and Job history. Reloading does
    not bring them back. The dataset remains available for a new backtest.
 
 Legacy cards without a workflow instead offer **Delete saved results…**. That

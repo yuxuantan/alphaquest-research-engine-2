@@ -682,7 +682,7 @@ strategy or dataset, or paste a campaign ID, any linked backtest ID, an activity
 ID, a report ID, or a link containing one ID. Search includes every retained
 campaign source and activity, including sources other than the representative
 backtest on the card. Readable strategy names such as `consecutive green hold`
-work as well as stored identifiers. Use **Campaigns**, **Strategy studies** or
+work as well as stored identifiers. Use **Sizing studies**, **Strategy studies** or
 **Drafts** to narrow the library. **More filters** reveals phase, run status and
 order; active filters remain visible when collapsed. **Clear search and filters**
 returns to all saved work.

@@ -29,7 +29,7 @@ def test_select_run_and_reopen_one_day_in_source_timezone(page, portal):
     declare_in_form(page,dict(mode="dates",is_start="2026-01-05",is_end="2026-01-05",oos_start="2026-01-06",oos_end="2026-01-06"))
     expect(page.locator("#start-backtest")).to_be_enabled()
     page.get_by_role("link", name="Dataset", exact=True).click()
-    page.get_by_role("link", name="Campaigns", exact=True).click()
+    page.get_by_role("link", name="Strategy Validation", exact=True).click()
     page.get_by_role("link", name="Saved runs", exact=True).click()
     playwright.expect(page.locator("#strategies-screen")).to_be_visible()
     page.get_by_role("link", name="New backtest →", exact=True).click()

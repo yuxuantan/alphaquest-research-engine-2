@@ -21,7 +21,8 @@ def test_campaign_portal_frozen_oos_and_charts(page,portal,tmp_path,phase):
     page.goto(portal['url']+'/#backtests/report/'+a['id'])
     page.locator('#report-prop-setup').click()
     open_prop_task(page, 'compare', close_outer=True)
-    page.locator('#campaign-new-'+phase).click()
+    title = f'{phase.title()} sizing study'
+    page.get_by_role('button', name=f'New {title}', exact=True).click()
     page.locator('#campaign-paths').fill('8');page.locator('#campaign-block').select_option('1')
     if phase=='evaluation':
         page.locator('#campaign-chains').fill('8');page.locator('.campaign-sizes').fill('3,10')
@@ -35,10 +36,10 @@ def test_campaign_portal_frozen_oos_and_charts(page,portal,tmp_path,phase):
     page.locator('#campaign-check').click()
     playwright.expect(page.locator('#campaign-run')).to_be_enabled(timeout=30000)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_have_text(title,timeout=30000)
     id=page.url.rsplit('/',1)[-1];prefix=f'/api/research-campaigns/{id}'
-    report=page.request.get(portal['url']+prefix+'/exports/results.json').json()
     playwright.expect(page.locator('#campaign-candidates tbody tr')).to_have_count(4)
+    report=page.request.get(portal['url']+prefix+'/exports/results.json').json()
     if phase=='evaluation':
         assert report['winner'] is None
         circles=page.locator('#campaign-chart circle')
@@ -103,7 +104,7 @@ def test_campaign_censored_error_and_progress_states(page,portal,tmp_path,monkey
         body=declaration(source);body['sources'][0]['sizes']=[10]
         campaign=run(client,create(client,body)['campaign_id'])
         page.goto(portal['url']+'/#backtests/prop/campaign/'+campaign['campaign_id'])
-        playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+        playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
         playwright.expect(page.locator('#campaign-chart')).to_contain_text('No resolved cost/time points')
         assert not page.locator('.campaign-pick').is_enabled()
         playwright.expect(page.locator('#campaign-candidates')).to_contain_text('unresolved')
@@ -128,7 +129,7 @@ def test_campaign_censored_error_and_progress_states(page,portal,tmp_path,monkey
             playwright.expect(page.locator('#prop-status')).to_contain_text('Completed 0 / 2 candidates')
             page.screenshot(path=str(tmp_path/'running-campaign.png'),full_page=True)
         finally:release.set()
-        playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+        playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
         playwright.expect(page.locator('#prop-status')).to_contain_text('2 / 2 completed candidates')
         assert len(client.get(f'/api/research-campaigns/{id}/attempts').json()['items'])==2
 

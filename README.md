@@ -101,7 +101,7 @@ See the [complete workflow](docs/research_workflow.md#first-complete-campaign-a-
 and [implementation checklist](docs/robust_research_plan.md).
 
 From **Strategies → New backtest**, save an IS grid, open a trial report, then
-**Configure prop analysis → Create Evaluation campaign / Create Funded campaign**.
+**Configure prop analysis → New Evaluation sizing study / New Funded sizing study**.
 Evaluation minimizes acquisition cost and calendar time with a complete estimated
 Pareto frontier; it does not choose a weighted winner. Funded maximizes modeled
 trader cash received before a saved horizon, conditional on a fresh funded
@@ -119,10 +119,11 @@ default for compatibility; saved reports still support manual prop configuration
 
 ## Documentation
 
+- [Core terminology](docs/terminology/README.md) explains how strategies, configurations, backtests and validation studies relate.
 - [Architecture guide](docs/architecture.md): requirements, workflow, code components and design trade-offs.
 - [Documentation index](docs/README.md): product guides, contracts, strategy
   references and reproducible evidence.
-- [Phase research campaigns](docs/research_campaign_api.md): compare saved IS trials across strategies/jobs, bound size searches, run independent Evaluation/Funded objectives, and freeze/export results with manual frozen OOS assessments in the prop workflow.
+- [Evaluation and Funded sizing studies](docs/research_campaign_api.md): compare saved IS trials across strategies and jobs, search sizes independently for each account phase, and assess frozen choices on OOS.
 - [Independent phase optimization plan](docs/phase_optimization_plan.md): implemented phase backends, portal campaigns and frozen OOS assessment; adaptive refinement and new-grid generation remain planned.
 - [Prop portfolio plan](docs/prop_portfolio_plan.md): completed dated phase and
   cash-ledger increments, with optional portfolio optimization still planned.
@@ -466,17 +467,17 @@ access history. Frozen phase campaigns apply saved parameters/sizes without OOS
 reselection. Previously accessed data is never relabelled untouched. See
 [the workflow, API, CLI and reproducible evidence](docs/research_workflow.md).
 
-## Independent phase campaigns in the portal
+## Evaluation and Funded sizing studies in the portal
 
 1. **Datasets → Strategies → New backtest**: declare IS/OOS and save IS trials.
-2. Open a completed backtest/trial → **Configure prop analysis** → **Create
-   Evaluation campaign** or **Create Funded campaign**. Add saved trials/jobs
+2. Open a completed backtest/trial → **Configure prop analysis** → **New
+   Evaluation sizing study** or **New Funded sizing study**. Add saved trials/jobs
    from other strategies with matching source/split/cost protocols.
 3. Choose the profile, explicit MNQ size/policy lists, IS window and
    simulation/calendar settings. Checking counts the complete membership; searches
    above 128 candidates require confirmation of that exact count. Evaluation compares acquisition cost/time;
    Funded compares received cash over its declared horizon with risk limits.
-4. **Save and check candidates → Run campaign**. Inspect progress, all candidate
+4. **Save and check candidates → Run sizing study**. Inspect progress, all candidate
    metrics, source links, filters and charts. Evaluation shows a Pareto frontier
    and marginal acceleration costs without a single automatic winner.
 5. Name/check the chosen resolved frontier point(s) or feasible funded

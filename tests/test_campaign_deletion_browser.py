@@ -40,13 +40,13 @@ def test_campaign_delete_confirmation_release_and_durable_report(page,portal,tmp
     assert page.request.get(portal['url']+'/api/research-campaigns/'+cid).status==200
     # Reach campaign management through the actual Research catalogue.
     page.goto(portal['url']+'/#backtests/research')
-    page.get_by_role('link',name='Manage campaign',exact=True).click()
+    page.get_by_role('link',name='Manage sizing study',exact=True).click()
     playwright.expect(page.locator('#campaign-delete')).to_be_enabled()
     page.set_viewport_size(dict(width=390,height=844))
     page.screenshot(path=str(tmp_path/'campaign-delete-narrow.png'),full_page=True)
     assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1')
     page.once('dialog',lambda dialog:dialog.accept());page.locator('#campaign-delete').click()
-    playwright.expect(page.locator('#campaign-deletion-result')).to_contain_text('1 campaign source reference released')
+    playwright.expect(page.locator('#campaign-deletion-result')).to_contain_text('1 study source reference released')
     assert len(deletes)==1 and deletes[0].endswith('/api/research-campaigns/'+cid)
     audit=page.request.get(portal['url']+f'/api/research-campaigns/{cid}/exports/deletion_record.json').body()
     receipt=json.loads(audit)['receipt'];assert receipt['source_ids']==[sid]
@@ -67,7 +67,7 @@ def test_campaign_delete_confirmation_release_and_durable_report(page,portal,tmp
     assert page.request.get(portal['url']+'/api/prop-analyses/'+aid+'/downloads/report.json').body()==normal
     assert page.request.get(portal['url']+'/api/prop-analyses/'+aid+'/downloads/analysis.zip').body()==archive
     page.goto(portal['url']+'/#backtests/research')
-    playwright.expect(page.get_by_role('link',name='Manage campaign',exact=True)).to_have_count(0)
+    playwright.expect(page.get_by_role('link',name='Manage sizing study',exact=True)).to_have_count(0)
     for name,raw in [('retained-report.json',normal),('retained-analysis.zip',archive),('deletion-record.json',audit),('original-source-report.json',source_json),('SYNTHETIC-source.csv',dataset_csv)]:
         (tmp_path/name).write_bytes(raw)
     (tmp_path/'evidence.json').write_text(json.dumps(dict(synthetic=True,source_id=sid,campaign_id=cid,analysis_id=aid,

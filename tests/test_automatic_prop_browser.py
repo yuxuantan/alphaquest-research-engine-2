@@ -30,7 +30,7 @@ def test_automatic_apex_backtest_optimize_check_reopen_and_download(page,portal,
     playwright.expect(page.locator('#validation-result')).to_contain_text('Dataset saved')
     dataset=next(d for d in page.request.get(portal['url']+'/api/datasets').json() if d['name']=='SYNTHETIC automatic Apex cash arithmetic')
     register(dataset,split)
-    page.get_by_role("link", name="Campaigns", exact=True).click()
+    page.get_by_role("link", name="Strategy Validation", exact=True).click()
     page.get_by_role("link", name="Saved runs", exact=True).click()
     playwright.expect(page.locator("#strategies-screen")).to_be_visible()
     page.get_by_role("link", name="New backtest →", exact=True).click()

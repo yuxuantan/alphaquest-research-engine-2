@@ -79,7 +79,7 @@ def test_opt_out_grid_to_independent_campaign(page, portal, tmp_path, phase):
     playwright.expect(page.locator('#campaign-count')).to_contain_text('4 candidates selected')
     page.screenshot(path=str(tmp_path/'source-check.png'), full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign', timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study', timeout=30000)
     id = page.url.rsplit('/', 1)[-1]
     prefix = portal['url']+'/api/research-campaigns/'+id
     result = page.request.get(prefix+'/exports/results.json').json()
@@ -98,7 +98,7 @@ def test_opt_out_grid_to_independent_campaign(page, portal, tmp_path, phase):
     posts = []
     page.on('request', lambda r: posts.append(r.url) if r.method == 'POST' else None)
     page.reload()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
     assert posts == []
     assert page.request.get(prefix+'/exports/results.json').json() == result
     (tmp_path/'grid.json').write_text(json.dumps(job, indent=2))

@@ -141,6 +141,7 @@ def test_recommendation_product_journey(page, portal, tmp_path, monkeypatch, des
         page.route(endpoint, lambda route: route.fulfill(json={'items':list(reversed(eligible))}))
         desk.get_by_role('link', name='Use in Portfolio setup').click()
         portfolio = page.locator('#portfolio-form')
+        playwright.expect(portfolio.get_by_role('combobox', name='Qualified configuration')).to_be_visible()
         playwright.expect(portfolio.locator('.portfolio-source:checked')).to_have_count(2)
         assert portfolio.locator('.portfolio-pick strong + small').first.inner_text().find(members[0]['source_backtest_id'][:8]) >= 0
         playwright.expect(portfolio.get_by_label('Trade sizing')).to_have_value('fixed_contracts')

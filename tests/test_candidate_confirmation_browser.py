@@ -63,7 +63,7 @@ def test_large_campaign_confirmation_from_saved_report(page,portal,tmp_path,phas
     assert len(dialogs)==2 and dialogs[1]['accepted']
     page.screenshot(path=str(tmp_path/'confirmed-source-check.png'),full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=60000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=60000)
     campaign_id=page.url.rsplit('/',1)[-1]
     prefix=portal['url']+'/api/research-campaigns/'+campaign_id
     campaign=page.request.get(prefix).json()
@@ -87,7 +87,7 @@ def test_large_campaign_confirmation_from_saved_report(page,portal,tmp_path,phas
     posts=[]
     page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.reload()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
     for kind,data in snapshots.items():
         assert page.request.get(prefix+'/exports/'+kind).body()==data
     assert posts==[]

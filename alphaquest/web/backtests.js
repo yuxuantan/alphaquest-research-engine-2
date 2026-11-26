@@ -55,7 +55,8 @@
     refresh.disabled = state.busy || state.loading;
     resetInstrument.disabled = state.busy || state.loading || !selectedDataset()?.instrument_settings;
     start.disabled = state.busy || state.loading || !state.ready || !state.strategy || !selectedDataset()?.instrument_settings || calendarUnavailable || !window.researchSplit.ready() || (!mechanic && !window.optimizations.workersReady());
-    start.textContent = state.busy ? "Submitting / running…" : mechanic ? "Open mechanic validation →" : "Start backtests →";
+    const runLabel = window.optimizations.multipleConfigurations() ? "Run parameter search →" : "Run backtest →";
+    start.textContent = state.busy ? "Submitting / running…" : mechanic ? "Create validation study →" : runLabel;
     form.setAttribute("aria-busy", String(state.busy));
   }
 
@@ -493,7 +494,7 @@
         const response = await window.portalLoading.fetch('/api/campaign-workflows', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(declaration)});
         const workflow = await readResponse(response);
         location.hash = `#campaigns/workflows/${workflow.id}/mechanic_validation`;
-      } catch (error) { showError(error, 'Could not configure mechanic validation'); }
+      } catch (error) { showError(error, 'Could not create validation study'); }
       finally { state.busy = false; controls(); }
       return;
     }
@@ -640,11 +641,11 @@
     const navigation = hash.startsWith("#backtests/prop/") || ["prop-sim", "research-workspace"].includes(screen) ? "prop-desk"
       : ["strategies", "backtests", "optimizations", "mechanic"].includes(screen) ? "campaigns" : screen;
     const path = hash.split('?')[0];
-    const setupTitle = mechanicSetup() ? 'Configure mechanic validation' : 'Run a backtest';
+    const setupTitle = mechanicSetup() ? 'New validation study' : 'Run a backtest';
     const phaseNames = {mechanic_validation: 'Mechanic validation', is_broad: 'IS Broad', is_narrow: 'IS Narrow', oos: 'OOS'};
     const screenTitles = {datasets: 'Dataset library', research: 'Research', 'research-workspace': 'Saved research',
-      campaigns: 'Campaigns', strategies: 'Saved runs', 'prop-sim': 'Prop Desk', 'prop-desk': 'Prop Desk', jobs: 'Job history',
-      mechanic: phaseNames[path.split('/')[3]] || 'Campaign workflow', optimizations: 'Backtest batches'};
+      campaigns: 'Strategy Validation', strategies: 'Saved runs', 'prop-sim': 'Prop Desk', 'prop-desk': 'Prop Desk', jobs: 'Job history',
+      mechanic: phaseNames[path.split('/')[3]] || 'Validation study', optimizations: 'Backtest batches'};
     let title = screenTitles[screen];
     if (screen === 'backtests') {
       title = path.startsWith('#backtests/report/') ? 'Backtest report'

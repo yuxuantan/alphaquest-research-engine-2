@@ -74,10 +74,10 @@ correctly unavailable rather than borrowing OOS bars.
    dataset’s defaults; navigation and Refresh choices preserve edits for the same
    dataset. They are never inferred from a filename or symbol. A dataset without settings cannot start a backtest.
    Monetary values stay as decimal strings when sent to the API.
-5. Review **Timestamps label bar closes**. The saved timezone converts to UTC;
+5. Expand **Execution assumptions** to review the bar-close timestamps. The saved timezone converts to UTC;
    signals and simulated fills use the same completed close with configured
    slippage. Holds measure elapsed time, including gaps.
-6. Click **Start backtests**. Inputs, refresh, and the start button are disabled
+6. Click **Run backtest**. Inputs, refresh, and the start button are disabled
    while the POST remains active. Progress displays preparation, replay, report
    saving, processed/total bars, and elapsed time. The seven-bar fixture may
    finish before an intermediate poll; larger runs show live replay progress.

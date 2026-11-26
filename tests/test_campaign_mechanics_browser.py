@@ -11,7 +11,7 @@ from test_campaign_mechanics import mechanics_csv, create_workflow, run_validati
 
 def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path):
     page.goto(portal['url']+'/#campaigns/consecutive_green_hold')
-    page.get_by_role('link',name='New backtest →',exact=True).click()
+    page.get_by_role('link',name='New validation study →',exact=True).click()
     playwright.expect(page.locator('#optimization-settings')).to_be_hidden()
     page.get_by_role('link',name='Upload a new dataset →',exact=True).click()
     page.locator('#csv-file').set_input_files({'name':'SYNTHETIC-mechanics.csv','mimeType':'text/csv','buffer':mechanics_csv()})
@@ -28,7 +28,7 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     page.locator('#backtest-slippage-ticks').fill('1')
     page.locator('#backtest-commission').fill('1')
     declare_in_form(page,dict(is_start='2026-01-05',is_end='2026-01-05',oos_start='2026-01-06',oos_end='2026-01-06'))
-    page.get_by_role('button',name='Open mechanic validation →',exact=True).click()
+    page.get_by_role('button',name='Create validation study →',exact=True).click()
     playwright.expect(page.locator('#mechanic-run')).to_be_visible()
     assert page.request.get(portal['url']+'/api/backtests').json()['total']==0
     assert page.locator('#mechanic-content button').count()==1
@@ -104,7 +104,7 @@ def test_upload_default_run_review_resume_and_phase_lock(page, portal, tmp_path)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     page.evaluate('scrollTo(0,0)')
     page.screenshot(path=str(tmp_path/'04-mobile.png'),full_page=True)
-    page.get_by_role('link',name='Open backtest report',exact=True).click()
+    page.get_by_role('link',name='Open IS backtest report',exact=True).click()
     playwright.expect(page.locator('#report-summary')).to_contain_text('78.00')
     playwright.expect(page.locator('#report-run-oos')).to_be_hidden()
     assert page.request.post(portal['url']+'/api/backtests/'+result['run_id']+'/oos',data={'request_id':'00000000-0000-0000-0000-000000000001'}).status==409
@@ -120,7 +120,7 @@ def test_existing_campaign_dataset_opens_setup_or_saved_validation(page,portal,t
         dataset,body,workflow=create_workflow(client)
         result=run_validation(client,workflow)
     page.goto(portal['url']+'/#campaigns/consecutive_green_hold')
-    page.get_by_role('link',name='SYNTHETIC mechanics',exact=True).click()
+    page.get_by_role('link',name='Consecutive Green Hold · SYNTHETIC mechanics',exact=True).click()
     playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(5)
     playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
     # A non-workflow historical source remains inspectable and does not inherit a pass.
@@ -133,7 +133,7 @@ def test_existing_campaign_dataset_opens_setup_or_saved_validation(page,portal,t
     page.goto(portal['url']+'/#campaigns/consecutive_green_hold')
     page.get_by_role('link',name='arithmetic_5m',exact=True).click()
     playwright.expect(page.locator('#backtest-dataset')).to_have_value(portal['saved']['arithmetic_5m']['id'])
-    playwright.expect(page.locator('#start-backtest')).to_have_text('Open mechanic validation →')
+    playwright.expect(page.locator('#start-backtest')).to_have_text('Create validation study →')
     page.locator('#backtest-slippage-ticks').fill('1')
     page.locator('#backtest-commission').fill('1')
     declare_in_form(page,declaration(portal['saved']['arithmetic_5m']['id']))
@@ -198,14 +198,14 @@ def test_overnight_bias_orb_default_mechanics_and_downloads(page, portal, tmp_pa
     assert source.status == 201, source.text()
     page.goto(url + '/#campaigns/overnight_bias_orb')
     playwright.expect(page.locator('#workflow-campaign-detail h2')).to_have_text('Overnight Bias ORB')
-    page.get_by_role('link', name='New backtest →', exact=True).click()
+    page.get_by_role('link', name='New validation study →', exact=True).click()
     playwright.expect(page.locator('#backtest-strategy')).to_have_value('overnight_bias_orb')
     page.locator('#backtest-dataset').select_option(source.json()['id'])
     page.locator('#backtest-slippage-ticks').fill('0')
     page.locator('#backtest-commission').fill('0')
     page.locator('#backtest-initial-capital').fill('10000')
     declare_in_form(page, dict(is_start=str(start), is_end=str(signal), oos_start=str(oos), oos_end=str(oos)))
-    page.get_by_role('button', name='Open mechanic validation →', exact=True).click()
+    page.get_by_role('button', name='Create validation study →', exact=True).click()
     page.locator('#mechanic-run').click()
     playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(1, timeout=60000)
     playwright.expect(page.locator('#mechanic-trades')).to_contain_text('320')
@@ -214,7 +214,7 @@ def test_overnight_bias_orb_default_mechanics_and_downloads(page, portal, tmp_pa
         with page.expect_download() as download:
             page.get_by_role('link', name=label, exact=True).click()
         download.value.save_as(tmp_path / path)
-    page.get_by_role('link', name='Open backtest report', exact=True).click()
+    page.get_by_role('link', name='Open IS backtest report', exact=True).click()
     playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('15:30 ET')
 
 
@@ -231,7 +231,7 @@ def test_noise_campaign_explanation_mechanics_and_downloads(page, portal, tmp_pa
     datasets = detail.locator('.workflow-datasets')
     playwright.expect(detail.get_by_role('heading', name='Noise', exact=True)).to_be_visible()
     playwright.expect(overview).to_contain_text('prior 20 observations')
-    playwright.expect(datasets).to_contain_text('No saved datasets for this campaign')
+    playwright.expect(datasets).to_contain_text('No validation studies or saved backtests for this strategy')
     assert overview.bounding_box()['y'] < datasets.bounding_box()['y']
     page.screenshot(path=str(tmp_path / 'noise-campaign.png'), full_page=True)
     page.set_viewport_size({'width': 390, 'height': 844})
@@ -243,14 +243,14 @@ def test_noise_campaign_explanation_mechanics_and_downloads(page, portal, tmp_pa
     source = page.request.post(url + '/api/datasets', params=dict(filename='synthetic-noise.csv',
         name=name, symbol='NQ', source_timezone='America/Chicago', tick_size='.25', point_value='20'), data=raw)
     assert source.status == 201, source.text()
-    page.get_by_role('link', name='New backtest →', exact=True).click()
+    page.get_by_role('link', name='New validation study →', exact=True).click()
     playwright.expect(page.locator('#backtest-strategy')).to_have_value('noise')
     page.locator('#backtest-dataset').select_option(source.json()['id'])
     page.locator('#backtest-slippage-ticks').fill('0')
     page.locator('#backtest-commission').fill('0')
     page.locator('#backtest-initial-capital').fill('10000')
     declare_in_form(page, dict(is_start=str(start), is_end=str(signal), oos_start=str(oos), oos_end=str(oos)))
-    page.get_by_role('button', name='Open mechanic validation →', exact=True).click()
+    page.get_by_role('button', name='Create validation study →', exact=True).click()
     page.locator('#mechanic-run').click()
     playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(1, timeout=60000)
     playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
@@ -268,7 +268,7 @@ def test_noise_campaign_explanation_mechanics_and_downloads(page, portal, tmp_pa
     assert Decimal(trade['exit_fill_price']) == 20040
     assert Decimal(trade['net_pnl']) == 1000
     (tmp_path / 'synthetic-noise.csv').write_bytes(raw)
-    page.get_by_role('link', name='Open backtest report', exact=True).click()
+    page.get_by_role('link', name='Open IS backtest report', exact=True).click()
     playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('exactly 14:30 CT')
     report_id = page.url.rsplit('/', 1)[-1]
     saved = page.request.get(url + '/api/backtests/' + report_id)
@@ -292,7 +292,7 @@ def test_relative_strength_explanation_paired_source_and_default_mechanics(page,
     playwright.expect(detail.get_by_role('heading', name='Relative Strength', exact=True)).to_be_visible()
     playwright.expect(overview).to_contain_text('decision minute is included')
     playwright.expect(overview).to_contain_text('following bar')
-    playwright.expect(datasets).to_contain_text('No saved datasets for this campaign')
+    playwright.expect(datasets).to_contain_text('No validation studies or saved backtests for this strategy')
     assert overview.bounding_box()['y'] < datasets.bounding_box()['y']
     page.screenshot(path=str(tmp_path / 'relative-strength-campaign.png'), full_page=True)
     page.set_viewport_size({'width': 390, 'height': 844})
@@ -308,7 +308,7 @@ def test_relative_strength_explanation_paired_source_and_default_mechanics(page,
     source = page.request.post(url + '/api/datasets', params=dict(
         filename='synthetic-relative-strength.csv', name='SYNTHETIC Relative Strength', **settings), data=raw)
     assert source.status == 201, source.text()
-    page.get_by_role('link', name='New backtest →', exact=True).click()
+    page.get_by_role('link', name='New validation study →', exact=True).click()
     playwright.expect(page.locator('#backtest-strategy')).to_have_value('relative_strength')
     playwright.expect(page.locator(f'#backtest-dataset option[value="{primary.json()["id"]}"]')).to_be_disabled()
     page.locator('#backtest-dataset').select_option(source.json()['id'])
@@ -316,7 +316,7 @@ def test_relative_strength_explanation_paired_source_and_default_mechanics(page,
     page.locator('#backtest-commission').fill('0')
     page.locator('#backtest-initial-capital').fill('10000')
     declare_in_form(page, dict(is_start=start, is_end=signal, oos_start=oos, oos_end=oos))
-    page.get_by_role('button', name='Open mechanic validation →', exact=True).click()
+    page.get_by_role('button', name='Create validation study →', exact=True).click()
     page.locator('#mechanic-run').click()
     playwright.expect(page.locator('#mechanic-trades tbody tr')).to_have_count(1, timeout=60000)
     playwright.expect(page.locator('#mechanic-confirm')).to_be_disabled()
@@ -332,7 +332,7 @@ def test_relative_strength_explanation_paired_source_and_default_mechanics(page,
     assert Decimal(trade['entry_fill_price']) == 20100
     assert Decimal(trade['exit_fill_price']) == 20120
     assert Decimal(trade['net_pnl']) == 400
-    page.get_by_role('link', name='Open backtest report', exact=True).click()
+    page.get_by_role('link', name='Open IS backtest report', exact=True).click()
     playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('ES closes are part of the saved dataset hash')
     page.reload()
     playwright.expect(page.locator('[data-setting="session_flattening"]')).to_contain_text('15:00 CT')

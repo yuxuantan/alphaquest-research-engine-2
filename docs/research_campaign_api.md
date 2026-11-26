@@ -1,4 +1,4 @@
-# Phase research campaigns
+# Evaluation and Funded sizing studies
 
 [Home](../README.md) / [Docs](README.md) / [Research workflow](research_workflow.md)
 
@@ -10,7 +10,7 @@ constraints. The two declarations, source sets and calculations are independent.
 
 ## Remove an unused phase campaign
 
-In **Research**, choose **Manage campaign**, then **Delete campaign**. The
+In **Research**, choose **Manage sizing study**, then **Delete sizing study**. The
 confirmation states how many source references will be released and how many
 calculation records will be kept. Cancelling makes no deletion request.
 Deleting the campaign keeps all source backtests, completed reports, calculation
@@ -41,9 +41,9 @@ their ordinary report/download URLs. Deletion does not relabel accessed data.
 
 1. Run an ordinary IS backtest or exhaustive optimization grid. Open a saved
    backtest/trial report and choose **Configure prop analysis**.
-2. Under **Independent phase research campaigns**, select **Create Evaluation
-   campaign** or **Create Funded campaign** and the local account profile. The current saved
-   backtest is preselected. Use **Add saved source**, choose Backtest or
+2. Choose **New Evaluation sizing study** or **New Funded sizing study** and
+   select the local account profile. The current saved backtest is preselected.
+   Use **Add saved source**, choose Backtest or
    Optimization job, then select a saved item from its dropdown. Search by
    strategy, parameters, dataset, date or ID; **Load more sources** retrieves
    older matches. Full parameters and IS dates appear below the selection.
@@ -66,7 +66,7 @@ their ordinary report/download URLs. Deletion does not relabel accessed data.
 4. **Save and check candidates** calculates the full candidate count. Above 128,
    a confirmation dialog shows the exact count; Cancel saves nothing. Confirm
    to continue. It then reconciles every source, records full membership,
-   and enables **Run campaign** only on success. Changing inputs requires a new
+   and enables **Run sizing study** only on success. Changing inputs requires a new
    check and immutable declaration. No final OOS is scheduled or inspected.
 5. The same prop report screen displays all candidates, strategy parameters,
    account/rule versions, research windows, original source links and downloads.

@@ -29,6 +29,8 @@ def test_oos_portal_runs_all_four_frozen_configs_and_reopens_results(page,portal
     header_style=page.locator('#oos-results th[data-column="oos_annual"] button').evaluate('button => getComputedStyle(button).borderTopStyle')
     assert header_style=='none'
     row=page.locator('#oos-results tr[data-trial="1"]')
+    playwright.expect(row.get_by_role('link', name='Open IS backtest report', exact=True)).to_be_visible()
+    playwright.expect(row.get_by_role('link', name='Open OOS backtest report', exact=True)).to_be_visible()
     playwright.expect(row.locator('td[data-column="net"]')).to_have_text('4680.00')
     row.locator('.broad-row-criteria summary').click()
     playwright.expect(row).to_contain_text('Passed · 7 / 7 checks passed')

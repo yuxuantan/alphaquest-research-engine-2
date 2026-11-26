@@ -262,12 +262,12 @@
 
   async function loadSources(offset, token) {
     inputs.disabled = true;
-    checkStatus.textContent = 'Loading qualified strategies…';
+    checkStatus.textContent = 'Loading qualified configurations…';
     const previous = source.value;
     const data = await request(`/api/prop-desk/sources?offset=${offset}&limit=${pageSize}`);
     if (token !== generation) return;
     if (offset && !data.items.length) return loadSources(0, token);
-    source.replaceChildren(new Option('Choose a qualified strategy', ''));
+    source.replaceChildren(new Option('Choose a qualified configuration', ''));
     get('strategies').replaceChildren();
     for (const run of data.items) {
       const dates = `${run.start_utc.slice(0, 10)} to ${run.end_utc.slice(0, 10)}`;
@@ -288,7 +288,7 @@
     get('source-prev').disabled = offset === 0;
     get('source-next').disabled = offset + pageSize >= data.total;
     updateSelection();
-    if (!data.total) checkStatus.textContent = 'No qualified strategies. Complete Mechanics, IS Broad, IS Narrow, OOS and Monte Carlo in Campaigns.';
+    if (!data.total) checkStatus.textContent = 'No qualified configurations. Complete Mechanic validation, IS Broad, IS Narrow, OOS and Monte Carlo in Strategy Validation.';
     enableForm();
   }
 

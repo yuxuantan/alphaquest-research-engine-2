@@ -39,7 +39,7 @@ def run_campaign(page, portal, tmp_path, expected_count):
     page.locator('#campaign-native-fields').screenshot(path=str(tmp_path/'native-campaign-declaration.png'))
     page.locator('#campaign-native-work').screenshot(path=str(tmp_path/'native-campaign-work.png'))
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=180000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=180000)
     campaign_id=page.url.rsplit('/',1)[-1]
     campaign=page.request.get(portal['url']+'/api/research-campaigns/'+campaign_id).json()
     response=page.request.get(portal['url']+f"/api/prop-analyses/{campaign['analysis_id']}/downloads/report.json")

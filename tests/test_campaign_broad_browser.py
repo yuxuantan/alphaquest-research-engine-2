@@ -161,10 +161,12 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
         page.get_by_label(name.replace('_',' ').capitalize()+' step',exact=True).fill(step)
     page.locator('#broad-preview').click()
     playwright.expect(page.locator('#broad-count')).to_have_text('18 iterations · IS only')
+    playwright.expect(page.locator('#broad-run')).to_have_text('Run parameter search →')
     page.screenshot(path=str(tmp_path/'01-grid.png'),full_page=True)
     page.locator('#broad-run').click()
     playwright.expect(page.locator('#broad-progress')).to_contain_text('COMPLETE · 18 / 18 trials',timeout=30000)
     playwright.expect(page.locator('#broad-results tbody tr')).to_have_count(18)
+    playwright.expect(page.locator('#broad-results th[data-column="trial"]')).to_contain_text('Tested configuration')
     playwright.expect(page.locator('#broad-results tr.broad-ineligible')).to_have_count(15)
     varied=['param.green_bar_count','param.hold_minutes','param.contracts']
     frozen=page.locator('#broad-results thead th.optimization-frozen-column')
@@ -180,8 +182,8 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     after=frozen.evaluate_all('cells => cells.map(cell => cell.getBoundingClientRect().x)')
     assert all(abs(left-right)<1 for left,right in zip(before,after))
     scroll.evaluate('el => {el.scrollLeft = 0}')
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 4',exact=True)).to_be_disabled()
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 10',exact=True)).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 4',exact=True)).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 10',exact=True)).to_be_disabled()
     first=page.locator('#broad-results tr[data-trial="1"]')
     metrics=page.request.get(prefix+'/broad').json()['job']['metric_columns']
     for key in metrics:
@@ -230,14 +232,14 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     page.locator('#broad-columns > summary').click()
     for trial in [1,2]:
         with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/broad/selection')) as saved:
-            page.get_by_role('checkbox',name=f'Select trial {trial}',exact=True).check()
+            page.get_by_role('checkbox',name=f'Select configuration {trial}',exact=True).check()
         assert saved.value.ok
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 3',exact=True)).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 3',exact=True)).to_be_disabled()
     with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/broad/selection')):
-        page.get_by_role('checkbox',name='Select trial 1',exact=True).uncheck()
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 3',exact=True)).to_be_enabled()
+        page.get_by_role('checkbox',name='Select configuration 1',exact=True).uncheck()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 3',exact=True)).to_be_enabled()
     with page.expect_response(lambda r:r.request.method=='PATCH' and r.url.endswith('/broad/selection')):
-        page.get_by_role('checkbox',name='Select trial 3',exact=True).check()
+        page.get_by_role('checkbox',name='Select configuration 3',exact=True).check()
     playwright.expect(page.locator('#broad-selected')).to_contain_text('2 / 2')
     page.screenshot(path=str(tmp_path/'02-results-and-selection.png'),full_page=True)
     page.locator('#broad-confirm').click()
@@ -252,8 +254,8 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     page.screenshot(path=str(tmp_path/'03-is-narrow-inputs.png'),full_page=True)
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
     playwright.expect(page.locator('#broad-confirm')).to_have_text('Configurations confirmed')
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 2',exact=True)).to_be_checked()
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 2',exact=True)).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 2',exact=True)).to_be_checked()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 2',exact=True)).to_be_disabled()
     playwright.expect(page.locator('#broad-run')).to_be_disabled()
     playwright.expect(page.locator('#broad-results th[data-column="total_gross_pnl"]')).to_be_hidden()
     playwright.expect(page.locator('#broad-results th[data-column="param.contracts"]')).to_have_class(__import__('re').compile('optimization-frozen-column'))
@@ -288,7 +290,7 @@ def test_broad_search_columns_profit_filter_and_locked_selection(page,portal,tmp
     for key in varied:
         playwright.expect(page.locator(f'#broad-results th[data-column="{key}"]')).to_be_hidden()
     playwright.expect(page.locator('#broad-results td[data-column="total_net_pnl"]')).to_have_text('1872.00')
-    playwright.expect(page.get_by_role('checkbox',name='Select trial 1',exact=True)).to_be_disabled()
+    playwright.expect(page.get_by_role('checkbox',name='Select configuration 1',exact=True)).to_be_disabled()
     playwright.expect(page.locator('#broad-confirm')).to_be_disabled()
     playwright.expect(page.locator('#broad-run')).to_be_disabled()
     with page.expect_download() as archived_download:
@@ -327,7 +329,7 @@ def test_insufficient_history_and_extra_cost_failure_are_explained_and_unselecta
         row=page.locator('#broad-results tbody tr')
         playwright.expect(row.locator('.broad-row-criteria summary')).to_have_text(expected)
         row.locator('.broad-row-criteria summary').click()
-        playwright.expect(page.get_by_role('checkbox',name='Select trial 1',exact=True)).to_be_disabled()
+        playwright.expect(page.get_by_role('checkbox',name='Select configuration 1',exact=True)).to_be_disabled()
         playwright.expect(page.locator('#broad-confirm')).to_be_disabled()
         playwright.expect(page.locator('#mechanic-phases [data-phase="is_narrow"]')).to_be_disabled()
         if name=='cost-stress':
@@ -362,7 +364,7 @@ def test_saved_six_rule_grid_uses_four_rule_portal_without_rerun(page,portal,tmp
     playwright.expect(page.locator('.broad-legacy-note')).to_contain_text('earlier screening policy')
     playwright.expect(page.locator('#broad-results tbody .broad-row-criteria summary')).to_have_text('Qualified · 4 / 4 passed')
     assert len(page.request.get(prefix+'/broad/results').json()['items'][0]['screening']['checks'])==6
-    page.get_by_role('checkbox',name='Select trial 1',exact=True).check()
+    page.get_by_role('checkbox',name='Select configuration 1',exact=True).check()
     page.locator('#broad-confirm').click()
     playwright.expect(page.locator('#mechanic-phases [data-phase="is_narrow"]')).to_have_attribute('aria-current','step')
     page.locator('#mechanic-phases [data-phase="is_broad"]').click()
@@ -423,7 +425,7 @@ def test_queued_cancel_and_failed_run_resume_live_on_is_broad(page,portal,tmp_pa
         page.get_by_role('button',name='Reset layout',exact=True).click()
         playwright.expect(page.locator('#broad-results th[data-column="param.green_bar_count"]')).to_be_hidden()
         playwright.expect(page.locator('#broad-resume')).to_be_hidden()
-        playwright.expect(page.get_by_role('checkbox',name='Select trial 2',exact=True)).to_be_enabled()
+        playwright.expect(page.get_by_role('checkbox',name='Select configuration 2',exact=True)).to_be_enabled()
         assert client.get(prefix+'/broad').json()['job']['id']==failed
         assert preserved=={p:sha256(p.read_bytes()).hexdigest() for p in preserved}
         page.screenshot(path=str(tmp_path/'resumed-on-is-broad.png'),full_page=True)

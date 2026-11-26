@@ -60,7 +60,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
         dialog.dismiss()
     page.once('dialog',decline)
     page.locator('#campaign-check').click()
-    playwright.expect(page.locator('#campaign-status')).to_contain_text('Cancelled: 129 candidates require confirmation. No campaign was saved.')
+    playwright.expect(page.locator('#campaign-status')).to_contain_text('Cancelled: 129 candidates require confirmation. No sizing study was saved.')
     assert len(confirmations)==1 and '128-candidate confirmation threshold' in confirmations[0]
     assert page.request.get(portal['url']+'/api/research-campaigns').json()['items']==[]
     playwright.expect(page.locator('#campaign-run')).to_be_disabled()
@@ -72,7 +72,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
     playwright.expect(page.locator('#campaign-status')).to_contain_text('4 compatible candidates')
     page.screenshot(path=str(tmp_path/'checked-campaign.png'),full_page=True)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
     id=page.url.rsplit('/',1)[-1]
     saved=page.request.get(portal['url']+'/api/research-campaigns/'+id).json()
     result=page.request.get(portal['url']+f'/api/research-campaigns/{id}/exports/results.json').json()
@@ -119,7 +119,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
     page.locator('#campaign-check').click()
     playwright.expect(page.locator('#campaign-run')).to_be_enabled(timeout=30000)
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
     evaluation_id=page.url.rsplit('/',1)[-1]
     result=page.request.get(portal['url']+f'/api/research-campaigns/{evaluation_id}/exports/results.json').json()
     assert sorted(c['metrics']['expected_calendar_days_to_funded'] for c in result['candidates'])==[2,4,7,15]
@@ -145,7 +145,7 @@ def test_campaign_configuration_results_freeze_download_reopen(page,portal,tmp_p
         assert response.status_code==202,response.text
         assert wait(client,response.json()['analysis_id'])['status']=='complete'
     page.goto(portal['url']+'/#backtests/prop/campaign/'+limited['campaign_id'])
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign')
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study')
     playwright.expect(page.get_by_text('infeasible',exact=True)).to_have_count(2)
     playwright.expect(page.get_by_text('Not ranked',exact=True)).to_have_count(2)
     page.screenshot(path=str(tmp_path/'risk-constraint-campaign.png'),full_page=True)
@@ -180,7 +180,7 @@ def test_campaign_optimization_job_dropdown(page,portal,tmp_path):
     playwright.expect(page.locator('#campaign-run')).to_be_enabled(timeout=30000)
     playwright.expect(page.locator('#campaign-status')).to_contain_text('4 compatible candidates')
     page.locator('#campaign-run').click()
-    playwright.expect(page.locator('#prop-heading-title')).to_have_text('Research campaign',timeout=30000)
+    playwright.expect(page.locator('#prop-heading-title')).to_contain_text('sizing study',timeout=30000)
     id=page.url.rsplit('/',1)[-1]
     report=page.request.get(portal['url']+f'/api/research-campaigns/{id}/exports/results.json').json()
     assert len(report['candidates'])==4

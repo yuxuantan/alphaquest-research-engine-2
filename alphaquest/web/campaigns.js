@@ -16,6 +16,7 @@
   function number(id){const v=Number($('#'+id).value);if(!Number.isFinite(v))throw Error('Enter a finite number.');return v;}
   function integers(value){return value.split(',').map(s=>{if(!/^\d+$/.test(s.trim()))throw Error('Use comma-separated whole numbers.');return Number(s.trim());});}
   function checkbox(parent,label,cls){const l=node('label'),i=node('input');i.type='checkbox';i.className=cls;l.append(i,document.createTextNode(' '+label));parent.append(l);return i;}
+  const studyLabel = phase => ({evaluation:'Evaluation sizing study', funded:'Funded sizing study'})[phase] || 'Sizing study';
   const referenceLabels={initial_configured_capital:'Initial configured capital',current_account_balance:'Current account balance',available_drawdown_cushion:'Available drawdown cushion'};
   function canonical(value){return JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);}
   function frozenName(assessment,candidate){
@@ -86,15 +87,15 @@
   async function configure(source,{isCurrent=()=>true}={}) {
     const version=++configurationVersion;
     const panel=$('#prop-campaigns');panel.replaceChildren();
-    panel.append(node('h2','Independent phase research campaigns'));
+    panel.append(node('h2','Evaluation and Funded sizing studies'));
     const external=source.run_metadata.source?.kind==='external_trade_export';
     if(external&&source.capabilities?.phase_selection!==true){panel.append(node('p','This imported source is not eligible for independent phase selection. Use the source check below to inspect supported analysis and source limitations. Native strategy and OOS reruns remain unavailable.'));return;}
-    if(source.run_metadata.research?.phase!=='is'){panel.append(node('p','Select a declared IS backtest to create a research campaign.'));return;}
+    if(source.run_metadata.research?.phase!=='is'){panel.append(node('p','Select a declared IS backtest to create a sizing study.'));return;}
     const defaults=await api('/api/research-campaigns/defaults');
     const saved=await api('/api/research-campaigns?source_id='+source.id);
     if(version!==configurationVersion||!isCurrent())return;
-    const history=node('div');history.dataset.setupHistory='compare';for(const c of saved.items){history.append(link(`${c.phase} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
-    const d=node('details');d.id='campaign-configure';d.append(node('summary','Configure a phase campaign'));panel.append(d);
+    const history=node('div');history.dataset.setupHistory='compare';for(const c of saved.items){history.append(link(`${studyLabel(c.phase)} · ${c.status}${c.frozen?' · frozen':''} · ${c.campaign_id}`,`#backtests/prop/campaign/${c.campaign_id}`),node('br'));}panel.append(history);
+    const d=node('details');d.id='campaign-configure';d.append(node('summary','Configure a sizing study'));panel.append(d);
     const form=node('form');form.id='campaign-form';d.append(form);
     form.append(node('p','Compare saved IS sources and optimization trials. Each trial × fixed MNQ size, or trial × hard cap × declared sizing policy, is one candidate. The full count is calculated when checking; searches above 128 candidates require confirmation. Source identity, research coverage and costs must be compatible.'));
     if(external)form.append(node('p','Imported IS coverage and size-invariant execution paths are exporter declarations. The source check verifies preserved evidence and causal stop metadata; it does not certify market completeness or broker fills. Native strategy reruns and automatic frozen OOS launches are unavailable.'));
@@ -104,7 +105,7 @@
     form.append(node('p','Native forecasts rerun strategy opportunities, sizing and fills for every account path. Source admission checks the supported strategy, actual MNQ instrument, causal stops and complete observed sessions. Existing trade-path scenarios retain their saved execution assumptions.'));
     const profile=select(form,'Account profile','campaign-profile',[['apex-50k-eod','Apex 50K EOD'],['lucidflex-50k','LucidFlex 50K']]);
     const entry=node('div');panel.insertBefore(entry,d);
-    for(const [value,title]of [['evaluation','Create Evaluation campaign'],['funded','Create Funded campaign']])button(entry,title,'campaign-new-'+value).onclick=()=>{d.open=true;phase.value=value;phase.dispatchEvent(new Event('change',{bubbles:true}));phase.focus();};
+    for(const value of ['evaluation','funded'])button(entry,'New '+studyLabel(value),'campaign-new-'+value).onclick=()=>{d.open=true;phase.value=value;phase.dispatchEvent(new Event('change',{bubbles:true}));phase.focus();};
     const ruleNote=node('p');ruleNote.id='campaign-rule-summary';form.append(ruleNote);
     const profileStatus=node('p');profileStatus.id='campaign-profile-status';profileStatus.setAttribute('role','status');form.append(profileStatus);
     const showRule=()=>{ruleNote.textContent=`Local rule snapshot: ${profile.value} · ${defaults.profiles[profile.value]}. ${profileRuleSummary(phase.value,profile.value)} These are local model rules, not newly verified provider terms. Fees remain your explicit declarations. Source parameters, costs, sizes and the research window are saved by the compatibility check.`;};
@@ -182,7 +183,7 @@
     field(grid,'Simulated paths per candidate','campaign-paths','1000','number');field(grid,'Simulation seed','campaign-seed','42','number');
     select(grid,'Resampling block · weekdays','campaign-block',[['5','5'],['1','1'],['10','10']]);
     field(grid,'Scenario start date · Chicago','campaign-start',plan.is_start,'date');
-    const calendarNote=node('p','Calendar coverage is calculated automatically from the scenario start and the Evaluation chain limit or Funded receipt horizon. It does not require future market data; the derived dates are saved with the campaign.');form.append(calendarNote);
+    const calendarNote=node('p','Calendar coverage is calculated automatically from the scenario start and the Evaluation chain limit or Funded receipt horizon. It does not require future market data; the study saves the derived dates.');form.append(calendarNote);
     const nativeFields=node('fieldset');nativeFields.id='campaign-native-fields';nativeFields.className='prop-fields';nativeFields.hidden=nativeFields.disabled=true;form.append(nativeFields);
     nativeFields.append(node('legend','Native source-block forecast declaration'));
     const nativeDefaults=defaults.native_execution;
@@ -221,7 +222,7 @@
     }
     execution.addEventListener('change',changeExecution);$('#campaign-paths').addEventListener('input',synchronizeNativePaths);$('#campaign-seed').addEventListener('input',synchronizeNativePaths);
     const count=node('p','Candidate count will be calculated from the selected saved trials and sizes.');count.id='campaign-count';form.append(count);
-    const check=button(form,'Save and check candidates','campaign-check'),run=button(form,'Run campaign','campaign-run');run.disabled=true;
+    const check=button(form,'Save and check candidates','campaign-check'),run=button(form,'Run sizing study','campaign-run');run.disabled=true;
     const status=node('p');status.id='campaign-status';status.setAttribute('role','status');form.append(status);
     let campaignId=null,revision=0,windowVersion=0,windowPending=false,automaticWindow=null,windowTimer=null;
     function selectedSources(forWindow=false){
@@ -276,8 +277,8 @@
           if(e.detail?.code!=='candidate_confirmation_required')throw e;
           if(version!==revision)return;
           const total=e.detail.candidate_count;count.textContent=`${total} candidates selected.`;
-          if(!window.confirm(`This campaign contains ${total} candidates, above the 128-candidate confirmation threshold. Every candidate will be evaluated. Larger searches require more time and storage. Continue?`)){
-            status.textContent=`Cancelled: ${total} candidates require confirmation. No campaign was saved.`;return;
+          if(!window.confirm(`This sizing study contains ${total} candidates, above the 128-candidate confirmation threshold. Every candidate will be evaluated. Larger searches require more time and storage. Continue?`)){
+            status.textContent=`Cancelled: ${total} candidates require confirmation. No sizing study was saved.`;return;
           }
           if(version!==revision)return;
           body.confirmed_candidate_count=total;
@@ -410,7 +411,7 @@
   function renderAnalysis(report,campaign=null){
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-delete').hidden=true;$('#prop-downloads').replaceChildren();
     const assessment=report.assessment,isEval=report.phase==='evaluation',conservative=report.calculations.candidates.some(r=>r.uncertainty?.historical_mean);
-    $('#prop-heading-title').textContent=assessment?'Frozen OOS assessment':campaign?'Research campaign':'Independent phase analysis';
+    $('#prop-heading-title').textContent=assessment?'Frozen OOS assessment':campaign?studyLabel(campaign.manifest.phase):'Independent phase analysis';
     $('#prop-heading-note').textContent=isEval?'Evaluation · minimize acquisition cost and calendar time':conservative?'Funded · maximize the historical lower bound on expected cash':'Funded · maximize expected trader cash received';
     $('#prop-back').href=`#backtests/report/${report.source.backtest.id}`;
     const target=$('#prop-report-content');target.replaceChildren();target.className='';const calc=report.calculations;
@@ -463,7 +464,7 @@
         freeze.onclick=async()=>{try{if(!rationale.reportValidity())return;freeze.disabled=true;await api(`/api/research-campaigns/${campaign.campaign_id}/freeze`,{candidate_ids:[...picked],names:Object.fromEntries([...picked].map(id=>[id,names.get(id)||`${id.slice(0,12)}`])),rationale:rationale.value});await watch(campaign.campaign_id,()=>location.hash===`#backtests/prop/campaign/${campaign.campaign_id}`);}catch(e){status.textContent=e.message;freeze.disabled=false;}};
       }else {details(actions,'Frozen package',campaign.frozen);if(calc.candidates.some(r=>r.manifest.source?.backtest.run_metadata.source?.kind==='external_trade_export'))actions.append(node('p','Frozen settings are saved. Automatic OOS launch is unavailable for imported trades: no native strategy or untouched native split exists. Exporter research declarations do not establish an unseen OOS test.'));else assessmentControls(actions,campaign);}
       for(const kind of ['campaign.json','results.csv','results.json','source_checks.json','analysis.zip',...(campaign.frozen?['frozen_package.json']:[])])actions.append(link('Download '+kind,`/api/research-campaigns/${campaign.campaign_id}/exports/${kind}`),node('br'));
-      details(panel,'Campaign declaration and numerical identity',campaign.manifest);
+      details(panel,'Study settings and numerical identity',campaign.manifest);
     }else {const downloads=node('div');downloads.className='campaign-downloads';for(const [label,path]of [['Download analysis ZIP','downloads/analysis.zip'],['Download metrics CSV','files/phase_metrics.csv'],['Download metrics JSON','files/phase_metrics.json']]){const a=link(label,`/api/prop-analyses/${report.id}/${path}`);a.className='button secondary';downloads.append(a);}panel.append(downloads);}
     if(hasPolicies)panel.append(link('Download retained sizing decisions (CSV)',`/api/prop-analyses/${report.id}/files/sizing_decisions.csv`));
     if(calc.candidates.some(row=>row.native_forecast))for(const name of ['native_forecasts.json','native_forecast_paths.json','native_forecast_schedules.json','native_forecast_captures.json'])panel.append(node('br'),link('Download '+name,`/api/prop-analyses/${report.id}/files/${name}`));
@@ -486,20 +487,20 @@
   }
   function renderDeleted(receipt){
     $('#prop-config').hidden=true;$('#prop-report').hidden=false;$('#prop-delete').hidden=true;
-    $('#prop-heading-title').textContent='Campaign deleted';$('#prop-heading-note').textContent='Backtests, reports and research-access history retained';
-    $('#prop-status').textContent=`Campaign ${receipt.campaign_id} deleted. ${receipt.source_reference_count} source reference${receipt.source_reference_count===1?'':'s'} released.`;
+    $('#prop-heading-title').textContent='Sizing study deleted';$('#prop-heading-note').textContent='Backtests, reports and research-access history retained';
+    $('#prop-status').textContent=`Sizing study ${receipt.campaign_id} deleted. ${receipt.source_reference_count} source reference${receipt.source_reference_count===1?'':'s'} released.`;
     const target=$('#prop-report-content');target.replaceChildren();const panel=node('section');panel.className='panel prop-panel';target.append(panel);
-    const result=node('p',`${receipt.source_reference_count} campaign source reference${receipt.source_reference_count===1?'':'s'} released. Backtests and completed reports were kept. Other workflows may still protect a source.`);result.id='campaign-deletion-result';result.setAttribute('role','status');panel.append(result);
-    panel.append(link('Open research workspace','#backtests/research'),node('br'),link('Download campaign deletion record',`/api/research-campaigns/${receipt.campaign_id}/exports/deletion_record.json`));
+    const result=node('p',`${receipt.source_reference_count} study source reference${receipt.source_reference_count===1?'':'s'} released. Backtests and completed reports were kept. Other workflows may still protect a source.`);result.id='campaign-deletion-result';result.setAttribute('role','status');panel.append(result);
+    panel.append(link('Open research workspace','#backtests/research'),node('br'),link('Download sizing study deletion record',`/api/research-campaigns/${receipt.campaign_id}/exports/deletion_record.json`));
     for(const analysis of receipt.retained_analyses)if(analysis.status==='complete')panel.append(node('br'),link('Open retained report '+analysis.id.slice(0,12),`#backtests/prop/job/${analysis.id}`));
     const sources=node('details');sources.append(node('summary','Retained source backtests'));
     for(const source of receipt.source_ids)sources.append(link('Open source '+source.slice(0,12),`#backtests/report/${source}`),node('br'));
     panel.append(sources);
   }
   async function deletionControls(c,current){
-    const panel=node('section');panel.className='panel prop-panel';panel.id='campaign-deletion';panel.append(node('h2','Remove an unused campaign'));
+    const panel=node('section');panel.className='panel prop-panel';panel.id='campaign-deletion';panel.append(node('h2','Remove an unused sizing study'));
     const notice=node('p');notice.id='campaign-delete-status';notice.setAttribute('role','status');panel.append(notice);
-    const remove=button(panel,'Delete campaign','campaign-delete');remove.disabled=true;
+    const remove=button(panel,'Delete sizing study','campaign-delete');remove.disabled=true;
     let allowed=false;
     $('#prop-report-content').append(panel);
     function show(preview){
@@ -514,7 +515,7 @@
       try{
         const fresh=await api(`/api/research-campaigns/${c.campaign_id}/deletion`);if(!current())return;
         if(fresh.deleted){renderDeleted(fresh);return;}show(fresh);if(!fresh.deletable)return;
-        if(!window.confirm(`Delete ${fresh.phase} campaign ${c.campaign_id}?\n\nRelease ${fresh.source_reference_count} campaign source reference(s). Keep all backtests, ${fresh.retained_analyses.length} calculation record${fresh.retained_analyses.length===1?'':'s'} and research-access history.\n\nFrozen, assessed, running or dependent campaigns cannot be deleted.`))return;
+        if(!window.confirm(`Delete ${studyLabel(fresh.phase)} ${c.campaign_id}?\n\nRelease ${fresh.source_reference_count} study source reference(s). Keep all backtests, ${fresh.retained_analyses.length} calculation record${fresh.retained_analyses.length===1?'':'s'} and research-access history.\n\nFrozen, assessed, running or dependent sizing studies cannot be deleted.`))return;
         remove.disabled=true;
         const receipt=await api(`/api/research-campaigns/${c.campaign_id}`,{confirmation_sha256:fresh.confirmation_sha256},'DELETE');
         if(current())renderDeleted(receipt);
@@ -536,13 +537,14 @@
         if(current()&&deleted.deleted)renderDeleted(deleted);return;
       }
       if(!current())return;
-      $('#prop-status').textContent=`${c.manifest.phase} campaign · ${c.status} · ${c.analysis?.progress||'Sources checked'} · ${c.status==='complete'?c.manifest.candidate_search_count+' / '+c.manifest.candidate_search_count+' completed candidates':c.manifest.candidate_search_count+' declared candidates'} · ${c.campaign_id}`;
+      const label=studyLabel(c.manifest.phase);
+      $('#prop-status').textContent=`${label} · ${c.status} · ${c.analysis?.progress||'Sources checked'} · ${c.status==='complete'?c.manifest.candidate_search_count+' / '+c.manifest.candidate_search_count+' completed candidates':c.manifest.candidate_search_count+' declared candidates'} · ${c.campaign_id}`;
       if(c.status==='complete'){const r=await api(`/api/prop-analyses/${c.analysis_id}/downloads/report.json`);if(current()){renderAnalysis(r,c);await deletionControls(c,current);}return;}
       if(['validated','error','cancelled'].includes(c.status)){
-        $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p',c.analysis?.error||'Sources validated. Run the saved campaign to calculate results.'));
+        $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p',c.analysis?.error||'Sources validated. Run the saved sizing study to calculate results.'));
         if(c.status==='cancelled')p.append(node('p','The phase search stopped at a safe checkpoint. No partial candidate population is published. Running again restarts the full saved deterministic declaration; it does not select from completed candidates only.'));
         details(p,'Retained calculation attempts',await api(`/api/research-campaigns/${id}/attempts`));
-        button(p,c.status==='error'?'Retry interrupted or failed calculation':c.status==='cancelled'?'Run saved declaration again':'Run saved campaign','campaign-resume').onclick=async()=>{try{await api(`/api/research-campaigns/${id}/run`,{});await watch(id,current);}catch(e){$('#prop-status').textContent=e.message;}};await deletionControls(c,current);return;
+        button(p,c.status==='error'?'Retry interrupted or failed calculation':c.status==='cancelled'?'Run saved declaration again':'Run saved sizing study','campaign-resume').onclick=async()=>{try{await api(`/api/research-campaigns/${id}/run`,{});await watch(id,current);}catch(e){$('#prop-status').textContent=e.message;}};await deletionControls(c,current);return;
       }
       if(['queued','running'].includes(c.status)&&!$('#campaign-cancel')){
         $('#prop-report').hidden=false;const p=$('#prop-report-content');p.replaceChildren();p.append(node('p','The complete declared candidate population is retained. A stop request takes effect at the next safe calculation checkpoint; a finishing report may complete before the request arrives.'));
@@ -553,5 +555,5 @@
       await new Promise(resolve=>setTimeout(resolve,700));
     }
   }
-  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview,sizingControls,profileRuleSummary};
+  window.phaseCampaigns={configure,watch,renderAnalysis,renderRuleReview,sizingControls,profileRuleSummary,studyLabel};
 })();

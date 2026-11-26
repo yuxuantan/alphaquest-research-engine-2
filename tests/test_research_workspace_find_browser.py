@@ -68,7 +68,7 @@ def test_find_campaign_by_activity_backtest_and_link_then_review(page,portal,tmp
         playwright.expect(page.locator('#workspace-status')).to_contain_text('Showing 1 of 1')
         playwright.expect(card).to_have_attribute('data-id',cid)
         found.append(query)
-    card.get_by_role('link',name='Manage campaign',exact=True).click()
+    card.get_by_role('link',name='Manage sizing study',exact=True).click()
     playwright.expect(page.locator('#campaign-delete')).to_be_enabled()
     assert not writes
     page.goto(portal['url']+'/#backtests/research')

@@ -117,7 +117,7 @@ worker recovery and normal durable prop reports. Exact results are in
 ## Phase campaign navigation
 
 From a saved IS backtest or grid-trial report, choose **Configure prop analysis**.
-**Create Evaluation campaign** and **Create Funded campaign** lead the new research
+**New Evaluation sizing study** and **New Funded sizing study** lead the new research
 workflow. Add saved sources across strategies/jobs, set sizes/budget/profile and
 check compatibility, then run. Source links return to each original report/job.
 Saved campaign links reopen durable filtered comparisons and downloads; after

@@ -17,6 +17,7 @@
     : new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(value) / slots);
   const drafts = new Map();
   let strategy;
+  let combinationCount = 0n;
   let jobId = null;
   let sort = "trial", direction = "asc", offset = 0, total = 0;
   let version = 0, timer;
@@ -217,6 +218,7 @@
     }
   }
   function count() {
+    combinationCount = 0n;
     if (!strategy) return;
     const counts = Array.from(get("#optimization-ranges").rows, (row, index) => rowCount(row, strategy.parameters[index]));
     if (counts.some((value) => value === null)) {
@@ -224,6 +226,7 @@
       return;
     }
     const combinations = counts.reduce((a, b) => a * b, 1n);
+    combinationCount = combinations;
     const factors = counts.filter((value) => value > 1n);
     get("#optimization-count").textContent = `Total combinations: ${(factors.length ? factors : [1n]).join(" × ")} = ${combinations.toLocaleString("en-US")} ${combinations === 1n ? "backtest" : "backtests"}${combinations > 10000n ? " · exceeds the 10,000 limit" : ""}`;
   }
@@ -231,7 +234,10 @@
     remember();
     strategy = next;
     get("#optimization-ranges").replaceChildren();
-    if (!strategy) return;
+    if (!strategy) {
+      combinationCount = 0n;
+      return;
+    }
     for (const parameter of strategy.parameters) {
       const row = node("tr");
       row.dataset.parameter = parameter.name;
@@ -583,7 +589,8 @@
       get("#optimization-resume").disabled = false;
     }
   };
-  window.optimizations = { configure, fixedParameters, start, loadSettings, workersReady: () => workerState === "ready" };
+  window.optimizations = { configure, fixedParameters, start, loadSettings,
+    multipleConfigurations: () => combinationCount > 1n, workersReady: () => workerState === "ready" };
   window.addEventListener("hashchange", navigate);
   navigate();
 })();
