@@ -9,7 +9,7 @@ from statistics import median
 import numpy as np
 
 from ..optimization_cache import digest
-from . import desk, desk_basket as basket, lucid_backend, native_backend
+from . import desk, desk_basket as basket, desk_overlap, lucid_backend, native_backend
 from .adapter import canonical, digest as file_digest
 from .native_engine import sampled_days
 from .phase_profiles import profile_settings
@@ -78,6 +78,8 @@ def prepare(runs, datasets, analyses, body, configuration):
     for path in (Path(__file__), Path(basket.__file__), Path(desk.__file__),
                  Path(__file__).parents[1] / 'research_folds.py'):
         implementation[path.name] = file_digest(path)
+    if configuration.get('overlap_policy') == desk_overlap.POLICY:
+        implementation['desk_overlap.py'] = file_digest(Path(desk_overlap.__file__))
     evidence.update(rng=SAMPLING, dataset=inventory['source'])
     identity = digest(dict(version=VERSION, configuration=configuration, sources=snapshots, is_days=is_days,
                            oos_days=oos_days, provenance=evidence))
@@ -86,10 +88,10 @@ def prepare(runs, datasets, analyses, body, configuration):
                 oos_days=oos_days, identity=identity)
 
 
-def evaluation(days, targets, prepared, horizon, path_seeds):
+def evaluation(days, targets, prepared, horizon, path_seeds, *, sequential=False):
     """Use the single-attempt owner with an independent stream for each path."""
     profile, simulation = prepared['profile'], prepared['simulation']
-    setup = dict(prepared, days=basket.session_book(days, targets), evidence=dict(prepared['evidence'], micros=1),
+    setup = dict(prepared, days=basket.session_book(days, targets, sequential=sequential), evidence=dict(prepared['evidence'], micros=1),
                  settings=profile_settings(profile, desk.SOURCE_COSTS))
     paths = []
     for seed in path_seeds:
@@ -108,21 +110,21 @@ def evaluation(days, targets, prepared, horizon, path_seeds):
     return metrics, paths, dict(rules, starting_balance=50000)
 
 
-def funded(days, targets, prepared, horizon, path_seeds):
+def funded(days, targets, prepared, horizon, path_seeds, *, sequential=False):
     """Share path seeds while leaving tiers, terminal events and payouts to the Funded owner."""
     profile, simulation, sampling = (prepared[key] for key in ('profile', 'simulation', 'sampling'))
     lucid = profile.profile_id == 'lucidflex-50k'
     backend = lucid_backend if lucid else native_backend
     rules = (backend.Rules(daily_loss=1200., inactivity_enforced=profile.lucid_inactivity_enforced)
              if lucid else backend.Rules(approval_day_counts=profile.approval_day_counts))
-    requested = max(targets)
+    requested = sum(targets) if sequential else max(targets)
     paths = []
     if requested <= rules.levels[0][1]:
-        book = basket.session_book(days, targets)
+        book = basket.session_book(days, targets, sequential=sequential)
         accounts = (backend.funded(book, 1, 1, seed, sampling.block_weekdays, horizon=horizon, rules=rules)[0]
                     for seed in path_seeds)
     else:
-        variants = {cap: basket.session_book(days, targets, cap)
+        variants = {cap: basket.session_book(days, targets, cap, sequential=sequential)
                     for cap in {min(requested, level[1]) for level in rules.levels}}
 
         def run_accounts():
@@ -171,6 +173,7 @@ def rank(rows):
 def calculate(runs, body, configuration, prepared, staged, progress):
     basket.verify(runs, prepared)
     horizon = configuration['observation_sessions']
+    sequential = configuration.get('overlap_policy') == desk_overlap.POLICY
     workload_info = workload(len(body.members), body.minimum_members, body.maximum_members,
                              body.minimum_micros, body.maximum_micros, horizon)
     simulation = prepared['simulation']
@@ -199,15 +202,18 @@ def calculate(runs, body, configuration, prepared, staged, progress):
             progress(f'Prop Desk search · {len(ranked) + 1} of {workload_info["pairs"]} pairs')
             allocation = basket.allocation(weights, size)
             targets = allocation['micros']
-            admitted_is, skipped = basket.admitted(books, is_days, weights, targets)
-            metrics, paths, rules = evaluate(admitted_is, targets, prepared, horizon, path_seeds)
+            admitted_is, skipped = basket.admitted(books, is_days, weights, targets, sequential=sequential)
+            metrics, paths, rules = evaluate(admitted_is, targets, prepared, horizon, path_seeds,
+                                             sequential=sequential)
             score = (metrics['probabilities']['passed'] if phase == 'evaluation'
                      else metrics['first_year_mean_receipts'])
             ranked.append(dict(combination=number, micros=size, score=score))
             histories, skips = {'is': admitted_is}, {'is': skipped}
             if oos_days:
-                histories['oos'], skips['oos'] = basket.admitted(oos_books, oos_days, weights, targets)
-            basket.equity(output, size, histories, targets, snapshots)
+                histories['oos'], skips['oos'] = basket.admitted(oos_books, oos_days, weights, targets,
+                                                               sequential=sequential)
+            threshold = desk_overlap.threshold(rules) if sequential else None
+            basket.equity(output, size, histories, targets, snapshots, overlap_threshold=threshold)
             (output / f'paths_{size}.json').write_text(canonical(paths), encoding='utf-8')
             sizes.append(dict(micros=size, allocation=allocation, metrics=metrics, overlap_skips=skips))
         results.append(dict(id=number, members=indices, sizes=sizes, directory=directory,
@@ -215,4 +221,5 @@ def calculate(runs, body, configuration, prepared, staged, progress):
     ranking = rank(ranked)
     basket.verify(runs, prepared)
     return dict(objective=OBJECTIVES[phase], ties=TIES, ranking=ranking, ranking_sha256=digest(ranking),
-                combinations=results, workload=workload_info, is_days=is_days, law=basket.LAW), rules, path_seeds
+                combinations=results, workload=workload_info, is_days=is_days,
+                law=desk_overlap.LAW if sequential else basket.LAW), rules, path_seeds

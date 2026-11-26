@@ -10,7 +10,7 @@ from statistics import median
 from tempfile import TemporaryDirectory
 
 from ..optimization_cache import digest
-from . import desk, desk_basket as basket, desk_optimizer as optimizer, desk_subset_optimizer
+from . import desk, desk_basket as basket, desk_optimizer as optimizer, desk_overlap, desk_subset_optimizer
 from .adapter import canonical, digest as file_digest
 from .phase_profiles import verify_phase_source
 
@@ -20,7 +20,7 @@ VERSION = 'prop-desk-oos-assessment-v1'
 
 def selection(parent):
     """Resolve the saved rank, allocation and member order from the parent only."""
-    if parent['model_version'] != desk_subset_optimizer.VERSION:
+    if parent['model_version'] != desk_overlap.version(desk_subset_optimizer.VERSION, parent['configuration']):
         raise ValueError('This Optimise result has no supported frozen subset sizing preset.')
     search = parent['optimizer']
     if not search['ranking']:
@@ -71,16 +71,22 @@ def _checked_engine(parent, profile, simulation, sampling, archived_snapshot):
     for module in (desk, basket, optimizer, desk_subset_optimizer):
         path = Path(module.__file__)
         active_hashes[path.name] = file_digest(path)
+    sequential = parent['configuration'].get('overlap_policy') == desk_overlap.POLICY
+    if sequential:
+        path = Path(desk_overlap.__file__)
+        active_hashes[path.name] = file_digest(path)
     for name, sha in active_hashes.items():
         if evidence['implementation_sha256'].get(name) != sha:
             raise ValueError(f'The saved Optimise numerical contract differs at {name}.')
-    if evidence['rng'] != optimizer.SAMPLING or parent['optimizer']['law'] != basket.LAW:
+    law = desk_overlap.LAW if sequential else basket.LAW
+    if evidence['rng'] != optimizer.SAMPLING or parent['optimizer']['law'] != law:
         raise ValueError('The saved sampling or shared execution rule is incompatible.')
 
 
 def prepare(runs, datasets, analyses, parent, parent_sha, folder):
     rank, combo, size, members = selection(parent)
     config, search, evidence = parent['configuration'], parent['optimizer'], parent['provenance']
+    sequential = config.get('overlap_policy') == desk_overlap.POLICY
     phase, horizon, preset = parent['phase'], config['observation_sessions'], search['size_rule']
     if phase not in ('evaluation', 'funded'):
         raise ValueError('The saved Optimise account phase is unsupported.')
@@ -152,13 +158,14 @@ def prepare(runs, datasets, analyses, parent, parent_sha, folder):
             if any(snapshot.get(key) != expected.get(key) for key in keys):
                 raise ValueError(f"Saved {role.upper()} source {source['id'][:8]} changed while preparing the assessment.")
             books.append(book)
-        ledgers[role], _ = basket.admitted(books, windows[role], weights, targets)
+        ledgers[role], _ = basket.admitted(books, windows[role], weights, targets, sequential=sequential)
     prefix = combo['directory']
     name = f'admitted_trades_{rank["micros"]}.csv'
     sealed_trades = _read_artifact(folder, parent, f'{prefix}/{name}')
     with TemporaryDirectory(prefix='aq-desk-oos-') as directory:
         staged = Path(directory)
-        basket.equity(staged, rank['micros'], ledgers, targets, snapshots)
+        threshold = desk_overlap.threshold(parent['rules']) if sequential else None
+        basket.equity(staged, rank['micros'], ledgers, targets, snapshots, overlap_threshold=threshold)
         if (staged / name).read_bytes() != sealed_trades:
             raise ValueError('The rebuilt admitted trades differ from the sealed Optimise ledger.')
     verify_sources(runs, snapshots)
@@ -171,6 +178,8 @@ def prepare(runs, datasets, analyses, parent, parent_sha, folder):
     terms = dict(parent_id=parent['id'], combination=combo['id'], micros=rank['micros'],
                  allocation=size['allocation'], members=members, size_rule=preset,
                  profile_id=profile.profile_id, observation_sessions=horizon)
+    if sequential:
+        terms['overlap_policy'] = desk_overlap.POLICY
     sources = {role: [dict(backtest_id=s['backtest']['id'], manifest_sha256=s['manifest_sha256'],
                            trades_sha256=s['trades_sha256']) for s in group]
                for role, group in snapshots.items()}
@@ -226,7 +235,8 @@ def calculate(prepared, staged):
     horizon, preset = terms['observation_sessions'], terms['size_rule']
     targets = terms['allocation']['micros']
     owner = optimizer.evaluation if prepared['phase'] == 'evaluation' else optimizer.funded
-    _, oos_paths, rules = owner(prepared['days'], targets, prepared, horizon, prepared['seeds'])
+    _, oos_paths, rules = owner(prepared['days'], targets, prepared, horizon, prepared['seeds'],
+                               sequential=terms.get('overlap_policy') == desk_overlap.POLICY)
     if canonical(rules) != canonical(prepared['rules']):
         raise ValueError('The applied account rules differ from the saved Optimise rules.')
     if len(oos_paths) != len(prepared['is_paths']):

@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from pydantic import model_validator
 from starlette.concurrency import run_in_threadpool
 
-from .prop import desk, desk_basket, desk_diagnostics, desk_oos, desk_optimizer, desk_parity, desk_subset_optimizer
+from .prop import desk, desk_basket, desk_diagnostics, desk_oos, desk_optimizer, desk_overlap, desk_parity, desk_subset_optimizer
 from .prop.adapter import canonical, source_record
 from .prop.phase_profiles import profile_settings
 from .prop.phase_search import saved_oos_period
@@ -84,6 +84,7 @@ class BasketConfiguration(BaseModel):
     minimum_micros: StrictInt = Field(ge=1, le=60)
     maximum_micros: StrictInt = Field(ge=1, le=60)
     observation_sessions: StrictInt | None = Field(default=None, ge=1, le=2000)
+    overlap_policy: Literal['sequential_mae'] | None = None
 
     @model_validator(mode='after')
     def validate_members(self):
@@ -109,7 +110,8 @@ class BasketConfiguration(BaseModel):
         single = Configuration(source_backtest_id=self.source_backtest_id, phase=self.phase,
                                profile_id=self.profile_id, micros=self.maximum_micros,
                                observation_sessions=sessions)
-        return dict(self.model_dump(exclude={'check_sha256'}),
+        exclude = {'check_sha256'} if self.overlap_policy else {'check_sha256', 'overlap_policy'}
+        return dict(self.model_dump(exclude=exclude),
                     observation_sessions=single.resolved()['observation_sessions'])
 
 
@@ -206,7 +208,7 @@ def check_configuration(runs, analyses, body, datasets):
     if isinstance(body, BasketConfiguration):
         weights = [m.weight for m in body.members]
         return dict(status='compatible', check_sha256=checked['identity'], configuration=configuration,
-                    windows=checked['windows'], law=desk_basket.LAW,
+                    windows=checked['windows'], law=desk_overlap.LAW if body.overlap_policy else desk_basket.LAW,
                     allocations=[dict(size=size, **desk_basket.allocation(weights, size))
                                  for size in range(body.minimum_micros, body.maximum_micros + 1)])
     return dict(status='compatible', check_sha256=checked['identity'], configuration=configuration,
@@ -501,11 +503,11 @@ def basket_report(runs, analyses, id, body, configuration, prepared, staged):
         desk_basket.verify(runs, prepared)
         version, mode = desk_parity.SIMULATION_VERSION, 'prop_desk_simulation'
     snapshots = prepared['snapshots']
-    return dict(format_version=1, model_version=version, phase=body.phase,
+    return dict(format_version=1, model_version=desk_overlap.version(version, configuration), phase=body.phase,
                 settings=dict(ANALYSIS_MODE=mode), configuration=configuration,
                 profile_label=desk.PROFILES[body.profile_id]['label'],
                 source=snapshots['is'][0], source_summary=source_summary(snapshots['is'][0]),
-                basket=dict(windows=windows, law=desk_basket.LAW, sizes=sizes,
+                basket=dict(windows=windows, law=desk_overlap.LAW if body.overlap_policy else desk_basket.LAW, sizes=sizes,
                             members=[source_summary(s) for s in snapshots['is']], **model),
                 sources=snapshots, rules=rules, provenance=evidence, calculations={},
                 check_sha256=prepared['identity'])
@@ -527,7 +529,7 @@ def optimizer_report(runs, analyses, id, body, configuration, prepared, staged):
     summaries = [source_summary(s) for s in snapshots['is']]
     result['members'] = summaries
     evidence = dict(prepared['evidence'], path_seeds=seeds)
-    return dict(format_version=1, model_version=version, phase=body.phase,
+    return dict(format_version=1, model_version=desk_overlap.version(version, configuration), phase=body.phase,
                 settings=dict(ANALYSIS_MODE=mode), configuration=configuration,
                 profile_label=desk.PROFILES[body.profile_id]['label'], source=snapshots['is'][0],
                 source_summary=summaries[0], sources=snapshots, rules=rules, optimizer=result,
@@ -692,6 +694,6 @@ def get(id: UUID, request: Request):
                 result['report']['basket'] = report['basket']
             if 'optimizer' in report:
                 result['report']['optimizer'] = report['optimizer']
-                if report['model_version'] != desk_parity.SEARCH_VERSION:
+                if report['model_version'] != desk_overlap.version(desk_parity.SEARCH_VERSION, report['configuration']):
                     result['report']['oos_assessment'] = oos_availability(analyses, report)
     return result

@@ -19,8 +19,9 @@ SUBSETS = '/api/prop-desk/optimizer/subsets'
 OOS = '/api/prop-desk/oos-assessments'
 
 
-def normal_sources(client, *, empty_oos=False):
-    raw = phase_history(days=9)
+def normal_sources(client, *, empty_oos=False, raw=None):
+    if raw is None:
+        raw = phase_history(days=9)
     if empty_oos:
         # Eight identical IS sessions. The ninth is observed and stays flat.
         raw = b'\n'.join((line.split(b',', 2)[0] + b',' + line.split(b',', 2)[1] +

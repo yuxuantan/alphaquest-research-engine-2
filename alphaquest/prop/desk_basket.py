@@ -11,7 +11,7 @@ import numpy as np
 
 from ..optimization_cache import digest
 from ..research_folds import inventory_sessions
-from . import desk, native_backend, lucid_backend
+from . import desk, desk_overlap, native_backend, lucid_backend
 from .adapter import canonical, digest as file_digest, source_record
 from .commissions import adapt, source_instrument
 from .native_analysis import day_book
@@ -94,7 +94,9 @@ def source_book(runs, analyses, record, profile, days):
         if day not in offsets:
             continue
         units = Decimal(row['quantity']) * scale
-        result[day].append(dict(entry=entry, exit=instant(row['exit_utc']), id=row['trade_id'],
+        mae_basis = ('saved_bound' if row.get('ohlc_mae_upper') is not None else
+                     'measured' if row.get('measured_mae') is not None else None)
+        result[day].append(dict(entry=entry, exit=instant(row['exit_utc']), id=row['trade_id'], mae_basis=mae_basis,
             scenario=by_day[day][offsets[day]], net=Decimal(row['source_net_pnl']) / units,
             commission=Decimal(row['source_commission']) / units,
             slippage=Decimal(row['source_slippage']) / units))
@@ -141,6 +143,8 @@ def prepare(runs, datasets, analyses, body, configuration):
     evidence['implementation_sha256']['desk_basket.py'] = file_digest(Path(__file__))
     evidence['implementation_sha256']['desk.py'] = file_digest(Path(desk.__file__))
     evidence['implementation_sha256']['research_folds.py'] = file_digest(Path(__file__).parents[1] / 'research_folds.py')
+    if configuration.get('overlap_policy') == desk_overlap.POLICY:
+        evidence['implementation_sha256']['desk_overlap.py'] = file_digest(Path(desk_overlap.__file__))
     hashes = {role: [dict(manifest=s['manifest_sha256'], trades=s['trades_sha256'],
                           risk=s['excursion_input']) for s in group] for role, group in snapshots.items()}
     identity = digest(dict(version=VERSION, configuration=configuration, source=hashes,
@@ -155,11 +159,14 @@ def verify(runs, prepared):
             verify_phase_source(runs, desk.SavedTradeSource(snapshot['backtest']['id']), snapshot)
 
 
-def admitted(book, days, weights, targets):
+def admitted(book, days, weights, targets, *, sequential=False):
     combined, skipped = {}, 0
     for day in days:
         entries = [(index, row) for index, member in enumerate(book) if targets[index] for row in member[day]]
         entries.sort(key=lambda pair: (pair[1]['entry'], -weights[pair[0]], pair[0], pair[1]['id']))
+        if sequential:
+            combined[day] = entries
+            continue
         selected, last_exit = [], None
         for index, row in entries:
             if last_exit is not None and row['entry'] < last_exit:
@@ -171,14 +178,19 @@ def admitted(book, days, weights, targets):
     return combined, skipped
 
 
-def session_book(days, targets, cap=None):
+def session_book(days, targets, cap=None, *, sequential=False):
     """Scale tuples once. With a Funded tier each tuple still enters at its absolute member target."""
+    quantities = allocation(targets, cap)['micros'] if sequential and cap is not None else targets
     scaled = []
     for selected in days.values():
         trades = []
         for index, row in selected:
+            if not quantities[index]:
+                continue
             net, adverse, *extras = row['scenario']
-            factor = targets[index] if cap is None else min(targets[index], cap) / cap
+            factor = quantities[index] if cap is None else min(quantities[index], cap) / cap
+            if sequential:
+                extras = [None, extras[1]] if len(extras) == 2 else []
             if extras and extras[0] is not None:
                 extras[0] = tuple((loss * factor, jump) for loss, jump in extras[0])
             trades.append((net * factor, adverse * factor, *extras))
@@ -186,20 +198,20 @@ def session_book(days, targets, cap=None):
     return scaled
 
 
-def funded_paths(days, targets, prepared, horizon):
+def funded_paths(days, targets, prepared, horizon, *, sequential=False):
     profile, simulation, sampling = (prepared[key] for key in ('profile', 'simulation', 'sampling'))
     lucid = profile.profile_id == 'lucidflex-50k'
     backend = lucid_backend if lucid else native_backend
     rules = (backend.Rules(daily_loss=1200., inactivity_enforced=profile.lucid_inactivity_enforced)
              if lucid else backend.Rules(approval_day_counts=profile.approval_day_counts))
-    requested = max(targets)
+    requested = sum(targets) if sequential else max(targets)
     if requested <= rules.levels[0][1]:
-        accounts = backend.funded(session_book(days, targets), 1, simulation.simulations,
+        accounts = backend.funded(session_book(days, targets, sequential=sequential), 1, simulation.simulations,
             simulation.seed, sampling.block_weekdays, horizon=horizon, rules=rules)
     else:
         # The existing account owner determines the effective opening tier before
         # it consumes the iterable. Its own stop, payout and activity law is unchanged.
-        variants = {cap: session_book(days, targets, cap)
+        variants = {cap: session_book(days, targets, cap, sequential=sequential)
                     for cap in {min(requested, level[1]) for level in rules.levels}}
         rng = np.random.RandomState(simulation.seed)
         accounts = []
@@ -230,35 +242,61 @@ def funded_results(paths, rules):
     return result
 
 
-def equity(staged, size, timeline, targets, snapshots):
+def equity(staged, size, timeline, targets, snapshots, *, overlap_threshold=None):
     """Historical target-size curves from admitted, unforced saved closed trades."""
     values = [Decimal(0)] * len(targets)
     peak = drawdown = Decimal(0)
     dates, levels, daily = [], [], []
     name = f'admitted_trades_{size}.csv'
     oos_start = None
+    overlap = {}
     with (staged / name).open('w', newline='', encoding='utf-8') as output:
         writer = csv.writer(output)
-        writer.writerow(('role', 'session', 'source_backtest_id', 'source_trade_id', 'member', 'entry_utc',
-                         'exit_utc', 'target_mnq', 'commission', 'slippage', 'net_pnl'))
+        header = ('role', 'session', 'source_backtest_id', 'source_trade_id', 'member', 'entry_utc',
+                  'exit_utc', 'target_mnq', 'commission', 'slippage', 'net_pnl')
+        if overlap_threshold is not None:
+            header += ('overlap', 'standalone_mae_basis', 'standalone_mae_at_target_usd', 'combined_mae_at_target_usd',
+                       'combined_mae_screen_flag', 'overlap_mae_incomplete')
+        writer.writerow(header)
         for role, days in timeline.items():
+            summary = dict(overlapping=0, flagged=0, incomplete=0, max_combined_mae=None)
             if role == 'oos':
                 oos_start = next(iter(days))
             for day, selected in days.items():
                 prior = sum(values)
-                for index, row in selected:
+                marks = desk_overlap.overlap_marks(selected, targets, overlap_threshold) if overlap_threshold is not None else {}
+                # The equity chart records realized P&L in close order, unlike the sequential simulation.
+                order = range(len(selected))
+                if overlap_threshold is not None:
+                    order = sorted(order, key=lambda pos: selected[pos][1]['exit'])
+                for pos in order:
+                    index, row = selected[pos]
                     quantity = targets[index]
                     net = row['net'] * quantity
                     values[index] += net
                     value = sum(values)
                     peak = max(peak, value)
                     drawdown = max(drawdown, peak - value)
-                    writer.writerow((role, day, snapshots[role][index]['backtest']['id'], row['id'], index + 1,
-                                     row['entry'].isoformat(), row['exit'].isoformat(), quantity,
-                                     row['commission'] * quantity, row['slippage'] * quantity, net))
+                    fields = (role, day, snapshots[role][index]['backtest']['id'], row['id'], index + 1,
+                              row['entry'].isoformat(), row['exit'].isoformat(), quantity,
+                              row['commission'] * quantity, row['slippage'] * quantity, net)
+                    if overlap_threshold is not None:
+                        mark = marks.get(pos)
+                        fields += (bool(mark), row.get('mae_basis'), desk_overlap.trade_mae(row, quantity),
+                                   mark['combined'] if mark else None,
+                                   bool(mark and mark['flagged']), bool(mark and mark['missing']))
+                        if mark:
+                            summary['overlapping'] += 1
+                            summary['flagged'] += mark['flagged']
+                            summary['incomplete'] += mark['missing']
+                            if mark['combined'] is not None:
+                                maximum = summary['max_combined_mae']
+                                summary['max_combined_mae'] = max(maximum or 0, float(mark['combined']))
+                    writer.writerow(fields)
                 dates.append(day)
                 levels.append([float(sum(values)), *map(float, values)])
                 daily.append(float(sum(values) - prior))
+            overlap[role] = summary
     def stats(observations, loss):
         avg = mean(observations)
         sd = stdev(observations) if len(observations) > 1 else None
@@ -266,22 +304,25 @@ def equity(staged, size, timeline, targets, snapshots):
                     sharpe=avg / sd * math.sqrt(252) if sd else None, maximum_drawdown=float(loss))
     result = dict(dates=dates, levels=levels, oos_start=oos_start, metrics=stats(daily, drawdown),
                   final_equity_change=float(sum(values)), trades_file=name)
+    if overlap_threshold is not None:
+        result['overlap_risk'] = dict(threshold_usd=overlap_threshold, periods=overlap)
     (staged / f'equity_{size}.json').write_text(canonical(result), encoding='utf-8')
 
 
 def calculate(runs, body, configuration, prepared, staged, progress):
     verify(runs, prepared)
     weights = [member.weight for member in body.members]
+    sequential = configuration.get('overlap_policy') == desk_overlap.POLICY
     results = []
     for size in range(body.minimum_micros, body.maximum_micros + 1):
         progress(f'Prop Desk basket · {size} MNQ of {body.maximum_micros}')
         sizing = allocation(weights, size)
         targets = sizing['micros']
-        histories = {role: admitted(book, prepared['windows'][role], weights, targets)
+        histories = {role: admitted(book, prepared['windows'][role], weights, targets, sequential=sequential)
                      for role, book in prepared['books'].items()}
         days = histories['is'][0]
         horizon = configuration['observation_sessions']
-        if len(body.members) == 1:
+        if len(body.members) == 1 and not sequential:
             # Exactly the Milestone 1 branch including its saved weekday convention and RNG.
             from types import SimpleNamespace
             single = SimpleNamespace(profile_id=body.profile_id, phase=body.phase,
@@ -293,14 +334,17 @@ def calculate(runs, body, configuration, prepared, staged, progress):
             if body.phase == 'funded':
                 metrics = funded_results(paths, rules)
         elif body.phase == 'evaluation':
-            setup = dict(prepared, days=session_book(days, targets), evidence=dict(prepared['evidence'], micros=1),
+            setup = dict(prepared, days=session_book(days, targets, sequential=sequential),
+                         evidence=dict(prepared['evidence'], micros=1),
                          settings=profile_settings(prepared['profile'], desk.SOURCE_COSTS))
             metrics, paths, rules = desk.evaluation(setup, horizon)
             rules['starting_balance'] = 50000
         else:
-            paths, rules = funded_paths(days, targets, prepared, horizon)
+            paths, rules = funded_paths(days, targets, prepared, horizon, sequential=sequential)
             metrics = funded_results(paths, rules)
-        equity(staged, size, {role: h[0] for role, h in histories.items()}, targets, prepared['snapshots'])
+        threshold = desk_overlap.threshold(rules) if sequential else None
+        equity(staged, size, {role: h[0] for role, h in histories.items()}, targets, prepared['snapshots'],
+               overlap_threshold=threshold)
         (staged / f'paths_{size}.json').write_text(canonical(paths), encoding='utf-8')
         results.append(dict(micros=size, allocation=sizing, metrics=metrics,
                             overlap_skips={role: h[1] for role, h in histories.items()}))

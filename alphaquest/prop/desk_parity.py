@@ -8,7 +8,7 @@ from statistics import median
 from types import SimpleNamespace
 
 from ..optimization_cache import digest
-from . import desk, desk_basket as basket, desk_optimizer as optimizer, desk_subset_optimizer as subsets
+from . import desk, desk_basket as basket, desk_optimizer as optimizer, desk_overlap, desk_subset_optimizer as subsets
 from .adapter import canonical, digest as file_digest
 
 SIMULATION_VERSION = 'prop-desk-simulation-v2'
@@ -78,11 +78,12 @@ def account_pair(body, configuration, prepared, combo, row, staged, rules, seeds
     if not common_oos:
         return dict(result, unavailable='The linked candidate pool has no common observed OOS sessions.')
     targets = row['allocation']['micros']
+    sequential = configuration.get('overlap_policy') == desk_overlap.POLICY
     weights = [body.members[index].weight for index in indices]
     days, _ = basket.admitted([prepared['oos_books'][index] for index in indices],
-                              common_oos, weights, targets)
+                              common_oos, weights, targets, sequential=sequential)
     owner = optimizer.evaluation if body.phase == 'evaluation' else optimizer.funded
-    oos_metrics, paths, applied = owner(days, targets, prepared, horizon, seeds)
+    oos_metrics, paths, applied = owner(days, targets, prepared, horizon, seeds, sequential=sequential)
     if canonical(applied) != canonical(rules):
         raise ValueError('The OOS account rules differ from the IS account rules.')
     path_file = f'oos_paths_{row["micros"]}.json'

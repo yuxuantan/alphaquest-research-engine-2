@@ -399,6 +399,13 @@
                   </div>
                   <input id="prop-desk-phase" type="hidden" value="evaluation">
                   <label>Account profile<select id="prop-desk-profile" required></select></label>
+                  <label id="prop-desk-overlap-label" hidden>Overlapping trades
+                    <select id="prop-desk-overlap-policy" aria-describedby="prop-desk-overlap-note">
+                      <option value="">One trade at a time</option>
+                      <option value="sequential_mae">Keep overlaps · sequential MAE</option>
+                    </select>
+                    <span id="prop-desk-overlap-note" class="field-help">Sequential MAE scores saved trades in entry order and screens combined excursions separately.</span>
+                  </label>
                   <label id="prop-desk-simulation-size-label">Simulation size rule
                     <select id="prop-desk-simulation-size-rule"></select>
                   </label>

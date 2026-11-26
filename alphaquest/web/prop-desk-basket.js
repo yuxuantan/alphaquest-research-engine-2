@@ -412,10 +412,23 @@
         methods.append(node('summary', 'Chart methodology'),
           node('p', 'Session-close cumulative net P&L from admitted trades. The chart uses the same targets in IS and OOS. Account stops, tiers and payouts apply in the simulation.', 'field-help'),
           node('p', 'Annualization uses 252 observed sessions and a zero cash benchmark. Drawdown uses each admitted trade close.', 'field-help'));
-        chart.append(methods,
-          node('p', `Overlapping entries skipped · IS ${row.overlap_skips.is}` +
-            (row.overlap_skips.oos == null ? '' : ` · OOS ${row.overlap_skips.oos}`), 'field-help'),
-          download('Admitted trades for this size ↓', files + result.trades_file));
+        chart.append(methods);
+        if (result.overlap_risk) {
+          const screen = result.overlap_risk;
+          const summary = node('details');
+          summary.open = true;
+          summary.append(node('summary', 'Overlap risk screen'), node('p',
+            `Flags compare summed standalone adverse excursions at target size with ${usd(screen.threshold_usd)}, the smaller initial loss allowance. The excursions can occur at different times. Flags are advisory.`, 'field-help'));
+          for (const [period, marks] of Object.entries(screen.periods)) {
+            summary.append(node('p', `${period.toUpperCase()} · ${marks.overlapping} overlapping trades · ${marks.flagged} at or above threshold · ${marks.incomplete} with incomplete evidence` +
+              (marks.max_combined_mae === null ? '' : ` · largest combined MAE ${usd(marks.max_combined_mae)}`), 'field-help'));
+          }
+          chart.append(summary);
+        } else {
+          chart.append(node('p', `Overlapping entries skipped · IS ${row.overlap_skips.is}` +
+            (row.overlap_skips.oos == null ? '' : ` · OOS ${row.overlap_skips.oos}`), 'field-help'));
+        }
+        chart.append(download('Admitted trades for this size ↓', files + result.trades_file));
       } catch (error) {
         if (current === version) chart.replaceChildren(node('p', error.message));
       }

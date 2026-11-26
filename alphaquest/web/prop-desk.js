@@ -16,6 +16,7 @@
   const optimise = get('optimise');
   const minimumMembers = get('min-members');
   const fundedSizeRule = get('funded-size-rule');
+  const overlapPolicy = get('overlap-policy');
   const pageSize = 30;
   let searchView = false;
   let automaticMinimum = true;
@@ -194,6 +195,7 @@
     get('simulation-size-label').hidden = simulationSizeRule.disabled = optimizing();
     const terms = basket.configuration();
     const hasOos = terms.members.some(member => member.oos_backtest_id);
+    get('overlap-label').hidden = overlapPolicy.disabled = terms.members.length < 2;
     get('oos-accounts-option').hidden = optimizing() || !hasOos || automaticSize();
     const basketFunded = !isFixed(terms) && phase.value === 'funded';
     const selectSizeRule = optimizing() && basketFunded;
@@ -288,6 +290,7 @@
   function submission() {
     const common = {phase:phase.value, profile_id:profile.value, observation_sessions:horizon.valueAsNumber};
     const terms = basket.configuration();
+    if (terms.members.length > 1 && overlapPolicy.value) terms.overlap_policy = overlapPolicy.value;
     if (optimizing()) {
       const body = {...common, ...terms, minimum_members:minimumMembers.valueAsNumber, compare_accounts:true};
       if (!maximum.value && !maximum.validity.badInput) body.maximum_micros = Number(maximum.placeholder);

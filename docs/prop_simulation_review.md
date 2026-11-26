@@ -15754,3 +15754,72 @@ live check used zero write requests and required no portal restart.
 [Optimise desktop](evidence/prop-desk-optimise-mode/optimise-desktop.png) ·
 [Funded search settings on mobile](evidence/prop-desk-optimise-mode/optimise-mobile.png) ·
 [Live verification](evidence/prop-desk-optimise-mode/live-verification.json)
+
+### Prop Desk sequential overlap with an advisory MAE screen — 2026-11-26
+
+In **Simulation** or **Optimise**, add at least two qualified strategies and
+choose **Overlapping trades → Keep overlaps · sequential MAE**. Run normally.
+This policy follows the structure of TIP MultiStrats cell 6b and its Funded
+trade loops. Each session keeps the saved opportunities, ordered by entry
+time, then descending weight, basket order and trade ID. Evaluation and
+Funded check each sized standalone excursion before booking the trade’s full
+net P&L. Funded retains the local phase rules and caps the sum of positive
+targets at each opening tier by scaling the basket proportionally and flooring
+each target to whole MNQ. Subsets rank on IS, and OOS uses the same saved
+targets and overlap policy. Historical equity books saved net P&L in exit
+order and includes costs. Its ledger shows target-size trade evidence.
+
+Under **Equity → Overlap risk screen**, the counts refer to distinct trades per
+IS or OOS ledger. For each trade the CSV carries the largest complete sum of
+standalone MAEs from a set of trades open at the same time, evaluated at their
+target size. A saved exit at the same timestamp as an entry clears the prior
+trade from the overlap group. A sum at or above the smaller initial daily-loss
+and trailing drawdown allowance is flagged for review. If a concurrent group
+lacks an excursion, its affected trades are marked incomplete. A trade can have
+both a complete flagged scenario and another incomplete scenario. These sums
+are a screen. The excursions can occur at different times or outside the
+overlapping interval and the allowance is a reference threshold. The simulated
+outcomes use the sequential account rules. Trade direction does not change the
+screen or cause position netting. The accuracy of event-time combined equity
+remains outside this mode.
+
+#### Reproduce the overlap evidence
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_overlap_browser.py --basetemp /tmp/aq-desk-overlap-proof
+.venv/bin/python -m pytest -q tests/test_prop_desk_overlap.py
+```
+
+1. The browser journey imports the labelled nine-session synthetic CSV and
+   runs two saved `consecutive_green_hold` configurations at one and two
+   minutes with a $5 NQ commission per side. The first eight sessions are IS
+   and January 15, 2026 is linked OOS. The test supplies calculator-only
+   qualification fixtures and blocks any later full bar parse.
+2. Run Apex Evaluation in Simulation at 4 MNQ and equal weights. Then run
+   Apex Funded in Optimise at the same size on mobile and inspect combination
+   3. Download **Admitted trades for this size** and reopen each result.
+3. Expect 18 saved trades at 2 MNQ each. On each session the overlapping
+   trades net $798 and $598 after commission, totaling **$12,564** over the
+   full ledger. Each sized adverse estimate is $601 (150 adverse points ×
+   $2 × 2 MNQ plus $1 entry cost). The combined screen is **$1,202** per
+   pair, so all 18 trades are flagged against the **$1,000** reference.
+   The sequential Evaluation model passes on day three in this fixture.
+   The flag leaves that outcome intact. The separate unit fixture covers
+   equal-to-threshold, missing MAE, exits at a new entry’s timestamp, and
+   proportional Funded tier arithmetic.
+
+[Synthetic input](evidence/prop-desk-sequential-overlap/SYNTHETIC-overlap.csv) ·
+[Evaluation report](evidence/prop-desk-sequential-overlap/evaluation-report.json) ·
+[Evaluation marked trades](evidence/prop-desk-sequential-overlap/evaluation-trades.csv) ·
+[Evaluation desktop reopen](evidence/prop-desk-sequential-overlap/evaluation-reopened.png) ·
+[Funded Optimise report](evidence/prop-desk-sequential-overlap/funded-report.json) ·
+[Funded marked trades](evidence/prop-desk-sequential-overlap/funded-trades.csv) ·
+[Funded mobile reopen](evidence/prop-desk-sequential-overlap/funded-reopened.png)
+
+The sequential browser journey and both original-policy browser journeys
+passed. The focused backend batch reported 12 passes and one setup failure
+while creating a backtest fixture for the dataset-tampering test. The isolated
+retry passed. Both standalone overlap arithmetic checks passed after fixing
+the screen’s NQ-to-MNQ conversion. The temporary browser servers stopped at
+teardown.
