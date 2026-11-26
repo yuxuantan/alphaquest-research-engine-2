@@ -634,15 +634,16 @@
     for (const name of ["datasets", "strategies", "research", "research-workspace", "campaigns", "mechanic", "jobs", "prop-sim", "prop-desk"]) {
       get(`#${name}-screen`).hidden = screen !== name;
     }
+    get("#prop-desk-header").hidden = !["prop-sim", "prop-desk"].includes(screen);
     get("#backtests-screen").hidden = !["backtests", "optimizations"].includes(screen) || hash.startsWith("#backtests/prop/");
     get("#prop-screen").hidden = !hash.startsWith("#backtests/prop/");
-    const navigation = hash.startsWith("#backtests/prop/") || screen === "research-workspace" ? "prop-sim"
+    const navigation = hash.startsWith("#backtests/prop/") || ["prop-sim", "research-workspace"].includes(screen) ? "prop-desk"
       : ["strategies", "backtests", "optimizations", "mechanic"].includes(screen) ? "campaigns" : screen;
     const path = hash.split('?')[0];
     const setupTitle = mechanicSetup() ? 'Configure mechanic validation' : 'Run a backtest';
     const phaseNames = {mechanic_validation: 'Mechanic validation', is_broad: 'IS Broad', is_narrow: 'IS Narrow', oos: 'OOS'};
     const screenTitles = {datasets: 'Dataset library', research: 'Research', 'research-workspace': 'Saved research',
-      campaigns: 'Campaigns', strategies: 'Saved runs', 'prop-sim': 'Prop Sim', 'prop-desk': 'Prop Desk', jobs: 'Job history',
+      campaigns: 'Campaigns', strategies: 'Saved runs', 'prop-sim': 'Prop Desk', 'prop-desk': 'Prop Desk', jobs: 'Job history',
       mechanic: phaseNames[path.split('/')[3]] || 'Campaign workflow', optimizations: 'Backtest batches'};
     let title = screenTitles[screen];
     if (screen === 'backtests') {

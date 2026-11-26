@@ -1,0 +1,17 @@
+{
+  "same_ranking_sha256": {
+    "evaluation": [
+      true,
+      true,
+      true
+    ],
+    "funded": [
+      true,
+      true
+    ]
+  },
+  "ranking_sha256": {
+    "evaluation": "25d1f41518bc7b07d7120bedbfd25354b32078712417ae646ccf03c9ea565e03",
+    "funded": "18f410fb1495073c3de4a89d0c06045ac81ddb6e059639b0b5030dd41add0af3"
+  }
+}

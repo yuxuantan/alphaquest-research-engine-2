@@ -151,6 +151,7 @@ def test_strategy_diagnostics_product(page, portal, tmp_path, monkeypatch, desk_
         page.set_viewport_size({'width':390, 'height':844})
         page.locator('.mobile-nav').get_by_role('link', name='Prop Desk', exact=True).click()
         desk.get_by_role('button', name='Optimise', exact=True).click()
+        desk.get_by_label('Allocation search').select_option('legacy')
         desk.get_by_label('At least this many strategies per combination').fill('2')
         desk.get_by_label('Minimum total MNQ').fill('2')
         desk.get_by_label('Maximum total MNQ').fill('4')

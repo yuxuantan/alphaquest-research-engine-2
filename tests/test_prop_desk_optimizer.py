@@ -33,7 +33,7 @@ def optimizer_members(client):
             strategy_parameters=dict(green_bar_count=1, hold_minutes=hold, contracts=1),
             execution_settings=dict(initial_capital='10000', tick_size='.25', point_value='20',
                 slippage_ticks=0, commission_per_contract_per_side=commission), sample_split=plan))
-        assert response.status_code == 201, (response.text, client.get(f'/api/progress/{progress_id}').json())
+        assert response.status_code == 201, client.get(f'/api/progress/{progress_id}').json().get('error', response.text)
         source_id = response.json()['id']
         oos = client.post(f'/api/backtests/{source_id}/oos', json=dict(request_id=str(uuid4())))
         assert oos.status_code == 201, oos.text

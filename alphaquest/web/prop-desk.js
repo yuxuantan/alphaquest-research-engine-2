@@ -11,24 +11,25 @@
   const inputs = get('inputs');
   const checkStatus = get('check-status');
   const launch = get('launch');
-  const history = get('history');
   const result = get('result');
   const optimise = get('optimise');
   const minimumMembers = get('min-members');
   const fundedSizeRule = get('funded-size-rule');
   const overlapPolicy = get('overlap-policy');
+  const allocationSearch = get('allocation-search');
   const pageSize = 30;
   let searchView = false;
   let automaticMinimum = true;
   const optimizing = () => searchView;
   const basket = window.propDeskBasket.setup(get, optimizing, updateSelection);
-  let defaults, defaultHorizon, sourceOffset, historyOffset, generation = 0, polling;
+  let defaults, defaultHorizon, sourceOffset, generation = 0, polling;
   const phaseButtons = form.querySelectorAll('[data-desk-phase]');
   const simulationSizeRule = get('simulation-size-rule');
   const horizonShortcuts = get('horizon-shortcuts');
   const automaticSize = () => Boolean(simulationSizeRule.value && simulationSizeRule.value !== 'manual');
   const compareOosAccounts = terms => get('include-oos-accounts').checked &&
     terms.members.some(member => member.oos_backtest_id);
+  const newSearch = () => optimizing() && allocationSearch.value !== 'legacy';
 
   const node = (tag, content, cls) => {
     const element = document.createElement(tag);
@@ -90,6 +91,27 @@
       message.textContent = 'Set a valid MNQ range and observation horizon.';
       return false;
     }
+    if (newSearch() && max > defaults.optimizer.recommendation_max_members) {
+      message.textContent = `Use up to ${defaults.optimizer.recommendation_max_members} strategies for recommendations.`;
+      return false;
+    }
+    if (newSearch() && allocationSearch.value === 'individual') {
+      const upper = maximum.value ? maximum_micros : Math.min(Number(maximum.max), minimum_micros + 4);
+      maximum.placeholder = String(upper);
+      const choose = (n, k) => {
+        if (n < k) return 0;
+        let result = 1;
+        for (let j = 1; j <= k; j++) result = result * (n - j + 1) / j;
+        return result;
+      };
+      let feasible = 0;
+      for (let size = min; size <= max; size++) feasible += choose(max, size) *
+        (choose(upper, size) - choose(Math.max(minimum_micros, size) - 1, size));
+      message.textContent = feasible > 0 ? `${feasible.toLocaleString()} feasible allocations · ` +
+        (feasible <= defaults.optimizer.recommendation_exact_limit ? 'exhaustive search' : 'bounded search')
+        : 'Increase maximum MNQ to fit the minimum strategy count.';
+      return feasible > 0;
+    }
     let count = 0n;
     let choose = 1n;
     for (let size = 1; size <= max; size++) {
@@ -113,13 +135,16 @@
   }
 
   function updateSelection(resetHorizon = false) {
-    if (automaticMinimum) minimum.value = Math.max(1, basket.configuration().members.length);
+    const members = basket.configuration().members;
+    if (automaticMinimum) minimum.value = Math.max(1, members.length);
     if (defaults) accountSettings(resetHorizon);
     updateRunButton();
     checkStatus.textContent = '';
     const open = get('source-link');
     open.hidden = !source.value;
     if (source.value) open.href = '#backtests/report/' + source.value;
+    const selected = members.length === 1 ? members[0].source_backtest_id : !members.length && source.value;
+    get('advanced').href = selected ? '#prop-sim?source=' + encodeURIComponent(selected) : '#prop-sim';
     updateSources();
     basket.preview();
   }
@@ -141,10 +166,10 @@
   }
 
   function sourceLabel(option) {
-    const label = node('div', undefined, 'prop-desk-source-label');
+    const label = window.propDeskBasket.strategyIdentity(option.dataset.strategy, option.dataset.summary);
     const note = node('small', 'Single-strategy runs only', 'prop-desk-source-note');
     note.hidden = true;
-    label.append(node('strong', option.dataset.strategy), node('small', option.dataset.summary), note);
+    label.append(note);
     if (option.dataset.oos) label.append(node('small', 'OOS linked'));
     return label;
   }
@@ -204,7 +229,8 @@
       ? 'Test candidate subsets and rank them by in-sample pass probability.'
       : 'Test candidate subsets and rank them by in-sample payout probability.';
     const minimumHorizon = basketFunded ? defaults.basket_first_year : 1;
-    const nextHorizon = basketFunded ? (optimizing() || simulationSizeRule.value === 'first_year' ||
+    const nextHorizon = basketFunded ? (newSearch() && fundedSizeRule.value === 'account_life' ? defaults.basket_life_cutoff
+      : optimizing() || simulationSizeRule.value === 'first_year' ||
       (simulationSizeRule.value === 'manual' && compareOosAccounts(terms))
       ? defaults.basket_first_year : defaults.basket_life_cutoff)
       : selected[phase.value + '_horizon'];
@@ -266,27 +292,6 @@
     enableForm();
   }
 
-  async function loadHistory(offset, token) {
-    const data = await request(`/api/prop-desk?offset=${offset}`);
-    if (token !== generation) return;
-    historyOffset = offset;
-    const parent = get('history-items');
-    if (offset === 0) parent.replaceChildren();
-    const list = offset === 0 ? node('ul', undefined, 'prop-desk-runs') : parent.querySelector('ul');
-    for (const job of data.items) {
-      const row = node('li');
-      const timestamp = new Date(job.created_at_utc).toLocaleString();
-      const name = job.mode === 'diagnostics' ? 'Strategy diagnostics'
-        : job.mode === 'oos' ? 'OOS account assessment'
-          : title(job.phase) + (['optimizer', 'subsets'].includes(job.mode) ? ' optimiser' : '');
-      row.append(link(`${name} · ${timestamp} · ${job.source_backtest_id.slice(0, 8)}`, runUrl(job.id)),
-                 node('span', ' · ' + job.status, 'muted'));
-      list.append(row);
-    }
-    if (offset === 0) parent.append(data.items.length ? list : node('p', 'No Prop Desk runs yet.', 'muted'));
-    get('history-next').hidden = !data.has_more;
-  }
-
   function submission() {
     const common = {phase:phase.value, profile_id:profile.value, observation_sessions:horizon.valueAsNumber};
     const terms = basket.configuration();
@@ -295,6 +300,11 @@
       const body = {...common, ...terms, minimum_members:minimumMembers.valueAsNumber, compare_accounts:true};
       if (!maximum.value && !maximum.validity.badInput) body.maximum_micros = Number(maximum.placeholder);
       if (phase.value === 'funded') body.funded_size_rule = fundedSizeRule.value;
+      if (newSearch()) {
+        delete body.compare_accounts;
+        body.allocation_search = allocationSearch.value;
+        return {endpoint:'/recommendations', body};
+      }
       return {endpoint:'/optimizer/subsets', body};
     }
     if (isFixed(terms)) return {endpoint:'', body:{...common,
@@ -328,7 +338,6 @@
     phase.value = button.dataset.deskPhase;
     phase.dispatchEvent(new Event('input', {bubbles:true}));
   };
-  get('open-history').onclick = () => history.focus();
   optimise.onclick = () => { location.hash = optimiseUrl; };
   for (const shortcut of horizonShortcuts.querySelectorAll('button')) shortcut.onclick = () => {
     horizon.value = shortcut.dataset.deskDays;
@@ -580,9 +589,111 @@
     };
   }
 
+  function recommendation(panel, job) {
+    const report = job.report;
+    const result = report.recommendation;
+    const funded = job.phase === 'funded';
+    const groups = new Map(result.groups.map(group => [group.id, group]));
+    const candidates = new Map(result.groups.flatMap(group => group.candidates.map(row => [row.id, row])));
+    const winner = result.ranking[0];
+    const winningTargets = candidates.get(winner.candidate).targets.reduce((total, value) => total + value, 0);
+    const describe = row => groups.get(row.combination).members.map((index, offset) =>
+      `${human(result.members[index].strategy)} · ${report.configuration.members[index].source_backtest_id.slice(0, 8)} · ${row.targets[offset]} MNQ`).join(' / ');
+    const frozen = node('section', undefined, 'panel prop-desk-panel');
+    frozen.append(node('h2', 'Recommended allocation'), node('p', describe(candidates.get(winner.candidate))),
+      node('p', `${report.profile_label} · ${title(job.phase)} · ${winningTargets} MNQ target` +
+        (winningTargets < winner.micros ? ` · ${winner.micros - winningTargets} MNQ unused` : ''), 'field-help'));
+    if (funded && report.configuration.overlap_policy) frozen.append(node('p',
+      'Opening Funded tiers scale the basket targets proportionally and round each strategy down.', 'field-help'));
+    if (winner.size_provisional) frozen.append(node('p', 'Account life is provisional. Some simulated accounts remain open at cutoff.', 'field-help'));
+    panel.append(frozen);
+    const summary = result.workload;
+    panel.append(node('p', `${summary.tested.toLocaleString()} of ${summary.feasible.toLocaleString()} feasible allocations tested · ` +
+      (summary.exhaustive ? 'Exhaustive' : 'Best tested') + ` · ${winner.path_count.toLocaleString()} paths per finalist`, 'field-help'),
+      node('p', 'IS · ' + window.propDeskBasket.interval(result.is_days) + '. OOS applies the saved counts.', 'field-help'),
+      node('p', funded ? 'Select each subset’s allocation by mean trader receipts, then rank subsets by payout probability.'
+        : 'Select by pass probability. Near ties at the top are ordered by median time to pass.', 'field-help'),
+      link('Saved ranking JSON ↓', `/api/prop-analyses/${job.id}/downloads/report.json`));
+    const state = node('p', undefined, 'field-help');
+    state.setAttribute('role', 'status');
+
+    function inspect(candidateId, label) {
+      const action = node('button', label, 'button secondary');
+      action.type = 'button';
+      action.onclick = async () => {
+        action.disabled = true;
+        state.textContent = 'Preparing frozen allocation evidence…';
+        try {
+          const evidence = await request('/api/prop-desk/recommendations/evidence', {parent_id:job.id, candidate_id:candidateId});
+          if (panel.isConnected) location.hash = runUrl(evidence.id);
+        } catch (error) {
+          state.textContent = error.message;
+          action.disabled = false;
+        }
+      };
+      return action;
+    }
+
+    const winnerLink = node('div', undefined, 'prop-desk-actions');
+    const showWinner = child => {
+      winnerLink.replaceChildren(child && ['queued', 'running', 'complete'].includes(child.status)
+        ? link('Open frozen Simulation', runUrl(child.id))
+        : inspect(winner.candidate, 'Open frozen Simulation'),
+        link('Use in Portfolio setup', '#prop-sim?mode=portfolio&recommendation=' + job.id));
+    };
+    showWinner(report.winning_evidence);
+    if (!report.winning_evidence) setTimeout(async () => {
+      if (!panel.isConnected) return;
+      try {
+        const refreshed = await request('/api/prop-desk/' + job.id);
+        if (panel.isConnected && refreshed.report.winning_evidence) showWinner(refreshed.report.winning_evidence);
+      } catch { /* The inspection action can retry evidence on demand. */ }
+    }, 750);
+    frozen.append(winnerLink, state);
+
+    const region = node('div', undefined, 'prop-desk-ranking-scroll');
+    region.setAttribute('role', 'region');
+    region.setAttribute('aria-label', 'Ranked strategy allocations');
+    region.tabIndex = 0;
+    const table = node('table');
+    const heading = table.createTHead().insertRow();
+    for (const label of ['Rank', 'Strategies and targets', funded ? 'IS any payout' : 'IS pass',
+      funded ? 'IS mean receipts' : 'IS breach', funded ? 'IS open at cutoff' : 'IS median pass day', '']) {
+      const header = node('th', label);
+      header.scope = 'col';
+      heading.append(header);
+    }
+    const body = table.createTBody();
+    for (const entry of result.ranking) {
+      const candidate = candidates.get(entry.candidate);
+      const m = candidate.metrics;
+      const row = body.insertRow();
+      for (const value of [entry.rank + (entry.near_best ? ' (within 1 SE)' : ''), describe(candidate), percent(entry.score),
+        funded ? money(entry.size_score) : percent(m.probabilities.breached),
+        (funded ? m.open_at_cutoff : entry.median_days) ?? '—']) row.insertCell().textContent = value;
+      row.insertCell().append(inspect(entry.candidate, 'Inspect allocation ' + entry.rank));
+    }
+    region.append(table);
+    panel.append(region);
+
+    const alternatives = node('details');
+    const picker = node('select');
+    picker.setAttribute('aria-label', 'Tested allocation');
+    for (const candidate of candidates.values()) picker.add(new Option(
+      describe(candidate) + ` · ${candidate.paths} paths` + (candidate.weighted_baseline ? ' · weighted baseline' : ''), candidate.id));
+    const action = node('div');
+    const update = () => action.replaceChildren(inspect(picker.value, 'Inspect tested allocation'));
+    picker.onchange = update;
+    update();
+    alternatives.append(node('summary', 'Tested allocations'), picker, action);
+    panel.append(alternatives);
+    const unavailable = result.groups.filter(group => group.unavailable);
+    if (unavailable.length) panel.append(node('p', `${unavailable.length} subsets had no positive allocation in the declared range.`, 'field-help'));
+  }
+
   function renderJob(job) {
     const panel = node('section', undefined, 'panel prop-desk-panel');
-    panel.append(['optimizer', 'subsets'].includes(job.mode)
+    panel.append(['optimizer', 'subsets', 'recommendation'].includes(job.mode)
       ? link('← Optimise', optimiseUrl) : link('← Prop Desk setup', '#prop-desk'));
     if (job.status !== 'complete') {
       const status = node('p', job.error || job.progress);
@@ -594,6 +705,12 @@
       return;
     }
     const report = job.report;
+    if (report.recommendation) {
+      result.replaceChildren(panel);
+      recommendation(panel, job);
+      return;
+    }
+    if (report.recommendation_evidence) panel.replaceChildren(link('← Saved recommendation', runUrl(report.configuration.parent_id)));
     if (job.mode === 'oos') {
       const config = report.configuration;
       const base = '/api/prop-analyses/' + job.id;
@@ -658,9 +775,11 @@
     clearTimeout(polling);
     const [path, query] = location.hash.split('?');
     if (path !== '#prop-desk') return;
+    document.querySelector('#prop-sim-mode-sizing').setAttribute('aria-current', 'page');
+    document.querySelector('#prop-sim-mode-portfolio').removeAttribute('aria-current');
     const params = new URLSearchParams(query);
     const id = params.get('analysis');
-    form.hidden = history.hidden = Boolean(id);
+    form.hidden = Boolean(id);
     result.hidden = !id;
     try {
       if (id) {
@@ -687,7 +806,7 @@
         defaults = settings;
         for (const [key, value] of Object.entries(defaults.profiles)) profile.add(new Option(value.label, key));
       }
-      await Promise.all([loadSources(sourceOffset || 0, token), loadHistory(0, token)]);
+      await loadSources(sourceOffset || 0, token);
     } catch (error) {
       if (token === generation) {
         if (id) result.replaceChildren(link('← Prop Desk setup', '#prop-desk'), node('p', error.message));
@@ -702,14 +821,6 @@
   });
   get('source-prev').onclick = () => pageSources(sourceOffset - pageSize);
   get('source-next').onclick = () => pageSources(sourceOffset + pageSize);
-  get('history-next').onclick = async () => {
-    const button = get('history-next');
-    const token = generation;
-    button.disabled = true;
-    try { await loadHistory(historyOffset + 20, token); }
-    catch (error) { if (token === generation) get('history-items').append(node('p', error.message)); }
-    finally { button.disabled = false; }
-  };
   window.addEventListener('hashchange', navigate);
   navigate();
 })();

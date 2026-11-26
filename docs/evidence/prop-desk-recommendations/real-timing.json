@@ -1,0 +1,56 @@
+{
+  "evaluation": {
+    "three_strategy_seconds": 2.1356924169813283,
+    "four_strategy_seconds": 2.345186582999304,
+    "repeat_run_seconds": 0.9438964170403779,
+    "saved_reopen_seconds": 0.061373208998702466,
+    "observed_is_sessions": 1034,
+    "bounds": [
+      4,
+      6
+    ],
+    "workload": {
+      "account_paths_computed": 27048,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 57,
+      "score_calls": 141,
+      "tested": 105,
+      "workers": 1
+    },
+    "stages": {
+      "is_seconds": 1.107591332984157,
+      "source_seconds": 0.5546930830460042,
+      "worker_and_recheck_seconds": 0.2184772920445539
+    },
+    "paths_per_finalist": 1000,
+    "ranking_sha256": "25d1f41518bc7b07d7120bedbfd25354b32078712417ae646ccf03c9ea565e03"
+  },
+  "funded": {
+    "three_strategy_seconds": 4.97666066599777,
+    "four_strategy_seconds": 5.600216416991316,
+    "repeat_run_seconds": 1.4145753749762662,
+    "saved_reopen_seconds": 0.07373050000751391,
+    "observed_is_sessions": 1034,
+    "bounds": [
+      4,
+      6
+    ],
+    "workload": {
+      "account_paths_computed": 27048,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 58,
+      "score_calls": 142,
+      "tested": 105,
+      "workers": 4
+    },
+    "stages": {
+      "is_seconds": 3.865123166004196,
+      "source_seconds": 0.8849165419815108,
+      "worker_and_recheck_seconds": 0.2213208339526318
+    },
+    "paths_per_finalist": 1000,
+    "ranking_sha256": "18f410fb1495073c3de4a89d0c06045ac81ddb6e059639b0b5030dd41add0af3"
+  }
+}

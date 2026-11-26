@@ -1869,6 +1869,11 @@ dialog::backdrop {
 .prop-portfolio-panel pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .portfolio-picks, .portfolio-ranges fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .portfolio-picks legend, .portfolio-ranges legend { font-weight: 700; }
+.portfolio-picks > .prop-desk-actions { align-items: end; margin: 0 0 12px; }
+.portfolio-picks > .prop-desk-actions > label { flex: 1 1 14rem; min-width: 0; }
+.portfolio-picks select { width: 100%; }
+.portfolio-handoff { border-left: 3px solid var(--accent); padding: 8px 12px; margin-bottom: 16px; background: var(--mint); }
+.portfolio-handoff > h3 { margin: 0 0 6px; }
 .portfolio-pick { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid #d8e1e5; border-radius: 8px; cursor: pointer; }
 .portfolio-pick > input { flex: 0 0 auto; width: 1rem; height: 1rem; min-width: 0; margin: 2px 0 0; accent-color: #087b6b; }
 .portfolio-pick > span { min-width: 0; overflow-wrap: anywhere; }
@@ -2158,7 +2163,7 @@ dialog::backdrop {
   :root { --sidebar: 0px; }
   .sidebar { display: none; }
   .topbar { flex-wrap: wrap; height: auto; padding-block: 8px 0; gap: 4px 8px; }
-  .mobile-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); flex-basis: 100%; gap: 4px; }
+  .mobile-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex-basis: 100%; gap: 4px; }
   .mobile-nav a {
     text-align: center;
     padding: 10px 2px;
@@ -2200,8 +2205,6 @@ dialog::backdrop {
 .prop-desk-rules { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px 16px; }
 .prop-desk-rules dt { font-weight: 600; }
 .prop-desk-rules dd { margin: 0; overflow-wrap: anywhere; }
-.prop-desk-runs { list-style: none; padding: 0; }
-.prop-desk-runs li { padding: 10px 0; border-top: 1px solid var(--line); }
 @media (max-width: 540px) {
   .prop-desk-metrics dd { font-size: clamp(17px, 5vw, 22px); overflow-wrap: anywhere; }
   .prop-desk-panel .library-table { min-width: 0; }
@@ -2260,7 +2263,6 @@ dialog::backdrop {
 .prop-desk-layout .prop-desk-section-heading h2 { margin: 0; }
 .prop-desk-library, .prop-desk-portfolio, .prop-desk-account { min-width: 0; }
 .prop-desk-layout .prop-desk-chart-section { min-width: 0; }
-#prop-desk-history { margin-top: 14px; }
 .prop-desk-strategies { display: grid; gap: 6px; margin-top: 11px; max-height: 370px; overflow: auto; }
 .prop-desk-source-card { display: flex; align-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 8px; }
 .prop-desk-source-card.is-selected { border-color: var(--accent); background: var(--mint); }

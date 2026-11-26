@@ -1,0 +1,12 @@
+{
+  "portal": "http://localhost:8000/",
+  "workspaces": [
+    "Strategy & sizing",
+    "Portfolio & cash flow"
+  ],
+  "desktop_advanced_source": "364df13574914ca1b88d33caa10b364e",
+  "mobile_reopened_recommendation": "fc78f98e652b49a0974cd90e9655bb29",
+  "live_portfolio_handoff": "From Strategy & sizing\n\ntwin continuation \u00b7 364df135 \u00b7 5 MNQ\n\nOpen saved recommendation\n\nThe saved group could not be applied in full. Choose a compatible portfolio below.\n\ntwin continuation \u00b7 364df135. This saved source predates the current strategy implementation. Native sizing requires a new qualified source; existing campaign results and fixed-path simulations are preserved.",
+  "live_portfolio_selected_sources": 0,
+  "mutating_requests": []
+}

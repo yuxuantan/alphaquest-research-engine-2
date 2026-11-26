@@ -34,6 +34,7 @@ def test_sequential_overlap_screen_and_reopen(page, portal, tmp_path, monkeypatc
                 page.set_viewport_size({'width':390, 'height':844})
                 desk.get_by_role('link', name='← Prop Desk setup').click()
                 desk.get_by_role('button', name='Optimise', exact=True).click()
+                desk.get_by_label('Allocation search').select_option('legacy')
                 desk.get_by_role('button', name='Funded', exact=True).click()
             for member in members:
                 desk.locator(f'[data-source="{member["source_backtest_id"]}"]').get_by_role('button', name='Add').click()

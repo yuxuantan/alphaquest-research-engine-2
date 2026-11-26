@@ -19,7 +19,7 @@ SUBSETS = '/api/prop-desk/optimizer/subsets'
 OOS = '/api/prop-desk/oos-assessments'
 
 
-def normal_sources(client, *, empty_oos=False, raw=None):
+def normal_sources(client, *, empty_oos=False, raw=None, max_hold=2):
     if raw is None:
         raw = phase_history(days=9)
     if empty_oos:
@@ -36,7 +36,7 @@ def normal_sources(client, *, empty_oos=False, raw=None):
     launch = client.post('/api/optimizations', json=dict(dataset_id=dataset_id,
         strategy_id='consecutive_green_hold', method='exhaustive', workers=1, automatic_prop=False,
         parameter_ranges=dict(green_bar_count=dict(start=1,end=1,step=0),
-                              hold_minutes=dict(start=1,end=2,step=1), contracts=dict(start=1,end=1,step=0)),
+                              hold_minutes=dict(start=1,end=max_hold,step=1), contracts=dict(start=1,end=1,step=0)),
         execution_settings=dict(initial_capital='10000',tick_size='.25',point_value='20',
                                 slippage_ticks=0,commission_per_contract_per_side='5'),
         sample_split=dict(mode='dates',is_start='2026-01-05',is_end='2026-01-14',
@@ -55,7 +55,7 @@ def normal_sources(client, *, empty_oos=False, raw=None):
                           json={'request_id':str(uuid4())})
         assert oos.status_code == 201, (oos.text, client.get('/api/progress/'+progress).json())
         members.append(dict(source_backtest_id=source, oos_backtest_id=oos.json()['id'], weight=1))
-    assert len(members) == 2
+    assert len(members) == max_hold
     return raw, members
 
 

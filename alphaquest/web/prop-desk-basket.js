@@ -17,6 +17,12 @@
     return control;
   };
 
+  function strategyIdentity(name, details) {
+    const identity = node('span', undefined, 'prop-desk-source-label');
+    identity.append(node('strong', name), node('small', details));
+    return identity;
+  }
+
   function setup(get, optimizing, invalidate) {
     const portfolio = [];
     let candidates;
@@ -341,11 +347,20 @@
         const identity = node('div', undefined, 'prop-desk-source-label');
         identity.append(node('strong', member.strategy.replaceAll('_', ' ')),
           node('small', 'Member ' + (i+1) + ' · ' + member.backtest_id.slice(0,8)));
+        const share = report.recommendation_evidence ? row.allocation.micros[i] / size
+          : report.configuration.members[i].weight / weightTotal;
         line.append(identity, node('span', row.allocation.micros[i] + ' MNQ', 'prop-desk-quantity'),
-          node('span', pct(report.configuration.members[i].weight / weightTotal), 'prop-desk-share'));
+          node('span', pct(share), 'prop-desk-share'));
         portfolio.append(line);
       }
       portfolio.append(node('p', `${size} MNQ tested · ${row.allocation.unused} unused · target allocations`, 'field-help'));
+      if (basket.tier_targets) {
+        const tiers = node('details');
+        tiers.append(node('summary', 'Tier-adjusted MNQ targets'));
+        for (const tier of basket.tier_targets) tiers.append(node('p',
+          `Opening profit ${usd(tier.opening_profit)} · ${tier.cap_mnq} MNQ cap · ${tier.targets.join(' / ')} MNQ by member`, 'field-help'));
+        portfolio.append(tiers);
+      }
       detail.replaceChildren(node('h2', funded ? 'Funded account' : 'Evaluation account'));
       timeline.replaceChildren();
       const pair = row.account_comparison;
@@ -584,6 +599,6 @@
     else open(optimizer.combinations[first.combination - 1], first.micros);
   }
 
-  window.propDeskBasket = {setup, render, renderOptimizer, plot,
+  window.propDeskBasket = {setup, render, renderOptimizer, plot, strategyIdentity,
     interval:dates => `${dates[0]} to ${dates.at(-1)} · ${dates.length} observed sessions`};
 })();

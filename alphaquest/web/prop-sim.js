@@ -129,12 +129,13 @@
         if(name===mode)item.setAttribute('aria-current','page');
         else item.removeAttribute('aria-current');
       }
+      document.querySelector('#prop-sim-advanced-heading').hidden=mode!=='sizing';
     }
     selectMode(query.get('mode')==='portfolio'?'portfolio':'sizing');
     const finishSectionLoading=window.portalLoading.region(host,selectedId?'Loading saved simulation…':'Loading simulation settings…');
     try {
     try{
-      if(query.get('mode')==='portfolio'){await window.propPortfolio.render(host);return;}
+      if(query.get('mode')==='portfolio'){await window.propPortfolio.render(host,null,query);return;}
       if(selectedId){const parent=await read('/api/prop-sim/'+selectedId);if(!alive())return;if(parent.configuration.mode==='portfolio'){selectMode('portfolio');await window.propPortfolio.render(host,parent);return;}}
       const sources={items:[],unavailable:[]};
       const sourceRequest=read('/api/prop-sim/candidates').then(value=>({value})).catch(error=>({error}));

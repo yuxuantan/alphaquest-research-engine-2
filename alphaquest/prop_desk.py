@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
+from time import perf_counter
 from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
@@ -14,7 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from pydantic import model_validator
 from starlette.concurrency import run_in_threadpool
 
-from .prop import desk, desk_basket, desk_diagnostics, desk_oos, desk_optimizer, desk_overlap, desk_parity, desk_subset_optimizer
+from .prop import (desk, desk_basket, desk_diagnostics, desk_oos, desk_optimizer, desk_overlap,
+                   desk_parity, desk_recommendation, desk_subset_optimizer)
 from .prop.adapter import canonical, source_record
 from .prop.phase_profiles import profile_settings
 from .prop.phase_search import saved_oos_period
@@ -173,7 +175,39 @@ class SubsetOptimizerLaunch(BasketLaunch):
         return dict(configuration, maximum_members=self.maximum_members, size_rule=size_rule)
 
 
+class RecommendationLaunch(BasketConfiguration):
+    require_full_oos: ClassVar[bool] = False
+    members: list[BasketMember] = Field(min_length=1, max_length=desk_recommendation.MAX_MEMBERS)
+    minimum_members: StrictInt = Field(default=1, ge=1, le=desk_recommendation.MAX_MEMBERS)
+    allocation_search: Literal['individual', 'weighted'] = 'individual'
+    funded_size_rule: Literal['first_year', 'account_life'] | None = None
+
+    def resolved(self):
+        if self.minimum_members > len(self.members) or self.minimum_members > self.maximum_micros:
+            raise ValueError('Choose a strategy minimum that fits the selected pool and MNQ cap.')
+        if self.phase == 'evaluation' and self.funded_size_rule is not None:
+            raise ValueError('Funded sizing presets apply only to Funded searches.')
+        if self.phase == 'funded' and self.observation_sessions is None:
+            horizon = 2000 if self.funded_size_rule == 'account_life' else desk_basket.FIRST_YEAR
+            configuration = BasketConfiguration.resolved(self.model_copy(update={'observation_sessions': horizon}))
+        else:
+            configuration = super().resolved()
+        if self.allocation_search == 'weighted':
+            desk_optimizer.workload(len(self.members), self.minimum_members, len(self.members), self.minimum_micros,
+                                   self.maximum_micros, configuration['observation_sessions'])
+        configuration['size_rule'] = 'optimal' if self.phase == 'evaluation' else self.funded_size_rule or 'first_year'
+        return configuration
+
+
+class RecommendationEvidenceLaunch(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    parent_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    candidate_id: str = Field(max_length=20, pattern=r'^\d+(?:-\d+){1,4}$')
+
+
 def prepare(runs, analyses, body, configuration, datasets):
+    if isinstance(body, RecommendationLaunch):
+        return desk_recommendation.prepare(runs, datasets, analyses, body, configuration)
     if isinstance(body, SubsetOptimizerLaunch) and body.compare_accounts:
         return desk_parity.prepare(runs, datasets, analyses, body, configuration, search=True)
     if isinstance(body, BasketLaunch) and body.simulation_size_rule is not None:
@@ -245,6 +279,7 @@ def verify_dataset(datasets, expected):
 
 
 def launch(runs, analyses, body, datasets):
+    began = perf_counter()
     configuration = body.resolved()
     basket = isinstance(body, BasketConfiguration)
     dataset = None
@@ -261,9 +296,12 @@ def launch(runs, analyses, body, datasets):
                 raise ResearchConflict('The saved basket dataset changed while checking the source. Run again.')
         else:
             checked = prepare(runs, analyses, body, configuration, datasets)
-        if body.check_sha256 is not None and checked['identity'] != body.check_sha256:
+        if getattr(body, 'check_sha256', None) is not None and checked['identity'] != body.check_sha256:
             raise ResearchConflict('The Prop Desk inputs changed. Check the source again before running.')
-        if isinstance(body, SubsetOptimizerLaunch):
+        if isinstance(body, RecommendationLaunch):
+            mode = 'recommendation:'
+            checked['launch_timing'] = dict(source_seconds=perf_counter() - began, queued_at=perf_counter())
+        elif isinstance(body, SubsetOptimizerLaunch):
             mode = 'subsets:'
         elif isinstance(body, OptimizerLaunch):
             mode = 'optimizer:'
@@ -298,6 +336,7 @@ def enqueue(analyses, key, source, refs, label, worker, args, *, strict_seal=Fal
 
 
 def run(analyses, id, runs, body, configuration, prepared, datasets, dataset):
+    recommendation = isinstance(body, RecommendationLaunch)
     try:
         analyses._update(id, 'running', f'Running Prop Desk {body.phase.title()}')
         with TemporaryDirectory(prefix='.pending-', dir=analyses.root) as temp:
@@ -310,8 +349,12 @@ def run(analyses, id, runs, body, configuration, prepared, datasets, dataset):
                     for group in prepared['snapshots'].values():
                         for snapshot in group:
                             analyses.check_oos(snapshot, settings, runs)
-                    report_builder = (optimizer_report if isinstance(body, (OptimizerLaunch, SubsetOptimizerLaunch))
-                                      else basket_report)
+                    if recommendation:
+                        report_builder = recommendation_report
+                    elif isinstance(body, (OptimizerLaunch, SubsetOptimizerLaunch)):
+                        report_builder = optimizer_report
+                    else:
+                        report_builder = basket_report
                     report = report_builder(runs, analyses, id, body, configuration, prepared, staged)
                 else:
                     analyses.check_oos(prepared['evidence']['source'], prepared['settings'], runs)
@@ -319,6 +362,16 @@ def run(analyses, id, runs, body, configuration, prepared, datasets, dataset):
             publish(analyses, id, staged, report)
     except Exception as exc:
         analyses._update(id, 'error', 'Prop Desk simulation failed', str(exc))
+        return
+    if recommendation:
+        try:
+            winner = report['recommendation']['ranking'][0]['candidate']
+            with analyses.lock:
+                parent, sha = diagnostic_parent(analyses, id)
+                enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, winner, prepared, dataset)
+        except (OSError, ValueError, KeyError, ResearchConflict):
+            # The saved IS report is already usable. Evidence can be queued from it again.
+            return
 
 
 def publish(analyses, id, staged, report):
@@ -350,6 +403,105 @@ def diagnostic_parent(analyses, id):
     if sha256(raw).hexdigest() != fingerprint['files']['report.json']:
         raise ResearchConflict('The saved parent result changed while reading it.')
     return json.loads(raw), fingerprint['files']['report.json']
+
+
+def recommendation_report(runs, analyses, id, body, configuration, prepared, staged):
+    started = perf_counter()
+    result, rules, seeds = desk_recommendation.calculate(
+        prepared, configuration, lambda message: analyses._update(id, 'running', message))
+    desk_basket.verify(runs, prepared)
+    timing = prepared['launch_timing']
+    result['timing'] = dict(source_seconds=timing['source_seconds'],
+        worker_and_recheck_seconds=started - timing['queued_at'], is_seconds=perf_counter() - started)
+    snapshots = prepared['snapshots']
+    result['members'] = [source_summary(snapshot) for snapshot in snapshots['is']]
+    return dict(format_version=1, model_version=desk_recommendation.VERSION, phase=body.phase,
+                settings=dict(ANALYSIS_MODE='prop_desk_recommendation'), configuration=configuration,
+                profile_label=desk.PROFILES[body.profile_id]['label'],
+                source=snapshots['is'][0], source_summary=source_summary(snapshots['is'][0]),
+                sources=snapshots, rules=rules, calculations={}, recommendation=result,
+                provenance=dict(prepared['evidence'], search_source_sha256=prepared['identity'], path_seeds=seeds))
+
+
+def recommendation_evidence_key(parent, sha, candidate_id):
+    key = digest((desk_recommendation.DETAIL_VERSION, parent['id'], sha, candidate_id))
+    return f'{desk.REQUEST_PREFIX}{parent["phase"]}:recommendation-evidence:{key}'
+
+
+def enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, candidate_id, prepared, dataset):
+    group, candidate = desk_recommendation.find_candidate(parent, candidate_id)
+    refs = {m[key] for m in parent['configuration']['members'] for key in ('source_backtest_id', 'oos_backtest_id') if m[key]}
+    key = recommendation_evidence_key(parent, sha, candidate_id)
+    return enqueue(analyses, key, parent['source']['backtest']['id'], refs, 'frozen allocation',
+                   run_recommendation_evidence,
+                   (runs, datasets, parent, sha, group, candidate, prepared, dataset), strict_seal=True)
+
+
+def launch_recommendation_evidence(runs, analyses, body, datasets):
+    with analyses.lock:
+        parent, sha = diagnostic_parent(analyses, body.parent_id)
+    if parent['model_version'] != desk_recommendation.VERSION:
+        raise ValueError('Open a saved strategy recommendation to inspect its allocation.')
+    configuration = parent['configuration']
+    declaration = RecommendationLaunch.model_validate({k: v for k, v in configuration.items() if k != 'size_rule'})
+    prepared = desk_recommendation.prepare(runs, datasets, analyses, declaration, configuration)
+    if prepared['identity'] != parent['provenance']['search_source_sha256']:
+        raise ResearchConflict('Verified sources or calculation settings differ from the saved recommendation.')
+    dataset_id = prepared['snapshots']['is'][0]['backtest']['run_metadata']['dataset']['id']
+    expected = dataset_evidence(datasets, dataset_id)
+    if not expected:
+        raise ResearchConflict('The saved recommendation dataset is unavailable.')
+    with analyses.lock:
+        return enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, body.candidate_id, prepared, expected)
+
+
+def run_recommendation_evidence(analyses, id, runs, datasets, parent, sha, group, candidate, prepared, dataset):
+    began = perf_counter()
+    try:
+        analyses._update(id, 'running', 'Checking the frozen allocation and comparing OOS')
+        with analyses.lock:
+            _, active = diagnostic_parent(analyses, parent['id'])
+            if active != sha:
+                raise ResearchConflict('The sealed recommendation changed after scheduling.')
+        verify_dataset(datasets, dataset)
+        desk_basket.verify(runs, prepared)
+        with TemporaryDirectory(prefix='.pending-', dir=analyses.root) as temp:
+            folder = Path(temp) / 'report'
+            folder.mkdir()
+            with analyses.runtime.activate():
+                pair, snapshots = desk_recommendation.evidence(runs, prepared, parent, group, candidate, folder)
+            config = parent['configuration']
+            terms = dict(config, parent_id=parent['id'], candidate_id=candidate['id'],
+                         members=[config['members'][i] for i in group['members']])
+            timing = dict(evidence_seconds=perf_counter() - began)
+            actual_total = sum(candidate['targets'])
+            row = dict(micros=actual_total, allocation=dict(micros=candidate['targets'],
+                       unused=candidate['tested_total'] - actual_total),
+                       metrics=pair['is_metrics'], overlap_skips=pair['overlap_skips'],
+                       account_comparison=dict(pair, oos_paths_file='oos_paths.json',
+                            oos_trades_file='oos_trades.csv'))
+            # The standard Simulation inspection also drives the equity chart and strategy diagnostics.
+            model = dict(windows={'is': parent['recommendation']['is_days'], 'oos': pair.get('oos_days')},
+                         law=parent['recommendation']['law'], sizes=[row],
+                         members=[source_summary(snapshot) for snapshot in snapshots['is']],
+                         size_rule='manual', reporting_preset=config['size_rule'])
+            if parent['phase'] == 'funded':
+                targets = candidate['targets']
+                sequential = bool(config.get('overlap_policy'))
+                model['tier_targets'] = [dict(opening_profit=profit, cap_mnq=cap, targets=(
+                    desk_basket.allocation(targets, min(sum(targets), cap))['micros'] if sequential
+                    else [min(target, cap) for target in targets])) for profit, cap, _ in parent['rules']['levels']]
+            report = dict(format_version=1, model_version=desk_recommendation.DETAIL_VERSION, phase=parent['phase'],
+                          settings=dict(ANALYSIS_MODE='prop_desk_recommendation_evidence'), configuration=terms,
+                          profile_label=parent['profile_label'], source=snapshots['is'][0],
+                          source_summary=source_summary(snapshots['is'][0]), sources=snapshots, basket=model,
+                          rules=parent['rules'], calculations={}, recommendation_evidence=timing,
+                          provenance=dict(parent['provenance'], parent_report_sha256=sha,
+                                          path_seeds=parent['provenance']['path_seeds'][:candidate['paths']],
+                                          simulation=dict(parent['provenance']['simulation'], simulations=candidate['paths'])))
+            publish(analyses, id, folder, report)
+    except Exception as exc:
+        analyses._update(id, 'error', 'Frozen allocation evidence failed', str(exc))
 
 
 def launch_diagnostics(runs, analyses, body, datasets):
@@ -579,7 +731,9 @@ async def invoke(request, fn, body, *, require_qualification=False):
 def defaults():
     return dict(profiles=desk.PROFILES, paths=desk.PATHS, seed=desk.SEED, block=desk.BLOCK_WEEKDAYS,
                 basket_first_year=desk_basket.FIRST_YEAR, basket_life_cutoff=2000,
-                optimizer=dict(max_pairs=desk_optimizer.MAX_PAIRS, max_pair_sessions=desk_optimizer.MAX_PAIR_SESSIONS))
+                optimizer=dict(max_pairs=desk_optimizer.MAX_PAIRS, max_pair_sessions=desk_optimizer.MAX_PAIR_SESSIONS,
+                               recommendation_max_members=desk_recommendation.MAX_MEMBERS,
+                               recommendation_exact_limit=desk_recommendation.EXACT_LIMIT))
 
 
 def catalogue_page(runs, candidates, offset, limit):
@@ -646,6 +800,16 @@ async def submit_subset_optimizer(body: SubsetOptimizerLaunch, request: Request)
     return await invoke(request, launch, body, require_qualification=True)
 
 
+@router.post('/recommendations', status_code=202)
+async def submit_recommendation(body: RecommendationLaunch, request: Request):
+    return await invoke(request, launch, body, require_qualification=True)
+
+
+@router.post('/recommendations/evidence', status_code=202)
+async def submit_recommendation_evidence(body: RecommendationEvidenceLaunch, request: Request):
+    return await invoke(request, launch_recommendation_evidence, body)
+
+
 @router.post('/diagnostics', status_code=202)
 async def submit_diagnostics(body: DiagnosticsLaunch, request: Request):
     return await invoke(request, launch_diagnostics, body)
@@ -692,6 +856,16 @@ def get(id: UUID, request: Request):
                 result['report']['sampling'] = report['provenance']['sampling']
             if 'basket' in report:
                 result['report']['basket'] = report['basket']
+            if 'recommendation_evidence' in report:
+                result['report']['recommendation_evidence'] = report['recommendation_evidence']
+            if 'recommendation' in report:
+                result['report']['recommendation'] = report['recommendation']
+                sha = sha256((analyses.root / id.hex / 'report.json').read_bytes()).hexdigest()
+                winner = report['recommendation']['ranking'][0]['candidate']
+                key = recommendation_evidence_key(report, sha, winner)
+                with analyses.connect() as db:
+                    child = db.execute('SELECT id FROM analyses WHERE request_hash=? ORDER BY created DESC LIMIT 1', (key,)).fetchone()
+                result['report']['winning_evidence'] = public_job(analyses.get(child[0])) if child else None
             if 'optimizer' in report:
                 result['report']['optimizer'] = report['optimizer']
                 if report['model_version'] != desk_overlap.version(desk_parity.SEARCH_VERSION, report['configuration']):

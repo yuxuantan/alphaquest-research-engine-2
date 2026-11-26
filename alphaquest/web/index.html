@@ -67,7 +67,6 @@
         >
         <a class="nav-item" href="#research" data-screen="research" aria-label="Research"><span class="nav-icon" aria-hidden="true">▦</span>Research</a>
         <a class="nav-item" href="#campaigns" data-screen="campaigns" aria-label="Campaigns"><span class="nav-icon" aria-hidden="true">↗</span>Campaigns</a>
-        <a class="nav-item" href="#prop-sim" data-screen="prop-sim" aria-label="Prop Sim"><span class="nav-icon" aria-hidden="true">◈</span>Prop Sim</a>
         <a class="nav-item" href="#prop-desk" data-screen="prop-desk" aria-label="Prop Desk"><span class="nav-icon" aria-hidden="true">▤</span>Prop Desk</a>
       </nav>
       <div class="sidebar-footer">
@@ -85,7 +84,6 @@
           <a href="#datasets" data-screen="datasets" aria-current="page">Dataset</a>
           <a href="#research" data-screen="research">Research</a>
           <a href="#campaigns" data-screen="campaigns">Campaigns</a>
-          <a href="#prop-sim" data-screen="prop-sim">Prop Sim</a>
           <a href="#prop-desk" data-screen="prop-desk">Prop Desk</a>
         </nav>
       </header>
@@ -340,24 +338,33 @@
           <p id="mechanic-status" role="status" aria-live="polite"></p>
           <div id="mechanic-content"></div>
         </section>
-        <section id="prop-sim-screen" aria-labelledby="prop-sim-title" hidden>
-          <div class="page-heading"><div><h1 id="prop-sim-title">Prop Sim<span class="heading-dot">.</span></h1><p>Compare sizing, portfolio allocation and cash outcomes from qualified campaign configurations.</p></div></div>
-          <nav class="prop-sim-mode-choice" aria-label="Prop Sim modes">
-            <a href="#prop-sim" id="prop-sim-mode-sizing" aria-current="page">Independent sizing</a>
+        <header id="prop-desk-header" hidden>
+          <div class="page-heading">
+            <div><h1 id="prop-desk-title">Prop Desk<span class="heading-dot">.</span></h1></div>
+            <a href="#jobs?kind=prop_analysis" class="button secondary">Saved runs</a>
+          </div>
+          <nav class="prop-sim-mode-choice" aria-label="Prop Desk workspaces">
+            <a href="#prop-desk" id="prop-sim-mode-sizing" aria-current="page">Strategy &amp; sizing</a>
             <a href="#prop-sim?mode=portfolio" id="prop-sim-mode-portfolio">Portfolio &amp; cash flow</a>
           </nav>
+        </header>
+
+        <section id="prop-sim-screen" aria-labelledby="prop-desk-title" hidden>
+          <div id="prop-sim-advanced-heading" class="prop-desk-toolbar" hidden>
+            <a href="#prop-desk" class="workflow-inline-link">← Strategy &amp; sizing</a>
+            <h2>Advanced single-strategy analysis</h2>
+          </div>
           <div id="prop-sim-content"></div>
         </section>
 
         <section id="prop-desk-screen" aria-labelledby="prop-desk-title" hidden>
-          <div class="page-heading"><div><h1 id="prop-desk-title">Prop Desk<span class="heading-dot">.</span></h1></div></div>
           <form id="prop-desk-form" class="prop-desk-form">
+            <div class="prop-desk-toolbar">
+              <a id="prop-desk-simulation-back" href="#prop-desk" hidden>← Simulation</a>
+              <h2 id="prop-desk-workspace-title">Simulation</h2>
+              <a href="#prop-sim" id="prop-desk-advanced" class="button secondary">Advanced single-strategy analysis</a>
+            </div>
             <fieldset id="prop-desk-inputs" disabled>
-              <div class="prop-desk-toolbar">
-                <a id="prop-desk-simulation-back" href="#prop-desk" hidden>← Simulation</a>
-                <h2 id="prop-desk-workspace-title">Simulation</h2>
-                <button id="prop-desk-open-history" type="button" class="button secondary">Saved runs</button>
-              </div>
               <div class="prop-desk-layout">
                 <section class="panel prop-desk-panel prop-desk-library" aria-labelledby="prop-desk-library-title">
                   <h2 id="prop-desk-library-title">Strategies</h2>
@@ -415,6 +422,11 @@
                   </div>
                   <p id="prop-desk-size-note" class="field-help">Enter a maximum to inspect the sizing and equity charts for a single strategy.</p>
                   <div id="prop-desk-optimizer-fields" class="prop-desk-fields" hidden>
+                    <label>Allocation search<select id="prop-desk-allocation-search">
+                      <option value="individual">Individual MNQ</option>
+                      <option value="weighted">Weighted · quick</option>
+                      <option value="legacy">Weighted · full evidence</option>
+                    </select></label>
                     <label>At least this many strategies per combination<input id="prop-desk-min-members" type="number" min="1" max="60" step="1" value="1" disabled required></label>
                     <label id="prop-desk-funded-size-label" hidden>Funded size rule<select id="prop-desk-funded-size-rule" disabled>
                       <option value="first_year">First year</option><option value="account_life">Account life</option>
@@ -436,11 +448,6 @@
               </div>
             </fieldset>
           </form>
-          <section id="prop-desk-history" class="panel prop-desk-panel" aria-labelledby="prop-desk-history-title" tabindex="-1">
-            <h2 id="prop-desk-history-title">Saved runs</h2>
-            <div id="prop-desk-history-items"></div>
-            <button id="prop-desk-history-next" class="button secondary" type="button" hidden>More runs</button>
-          </section>
           <div id="prop-desk-result" hidden></div>
         </section>
         <section id="backtests-screen" aria-label="Backtests" hidden>

@@ -18,7 +18,7 @@ def test_main_navigation_and_campaign_details(page, portal, tmp_path):
     playwright.expect(page.locator('main')).to_be_focused()
     assert page.url==portal['url']+'/'
     nav = page.get_by_role('navigation', name='Main navigation', exact=True)
-    destinations = ['Dataset', 'Research', 'Campaigns', 'Prop Sim', 'Prop Desk']
+    destinations = ['Dataset', 'Research', 'Campaigns', 'Prop Desk']
     playwright.expect(nav.locator('a')).to_have_count(len(destinations))
     assert nav.locator('a').evaluate_all('(items) => items.map(item => item.getAttribute("aria-label"))') == destinations
     playwright.expect(page.locator('#dataset-count')).to_have_text('2')
@@ -96,8 +96,8 @@ def test_prop_sim_empty_qualification_boundary_and_mobile(page, portal, tmp_path
     page.set_viewport_size({'width':390,'height':844})
     page.screenshot(path=str(tmp_path/'prop-sim-mobile.png'), full_page=True)
     nav = page.get_by_role('navigation', name='Mobile navigation', exact=True)
-    playwright.expect(nav.locator('a')).to_have_count(5)
-    for name, selector in [('Research','#research-screen'),('Campaigns','#campaigns-screen'),('Prop Sim','#prop-sim-screen'),('Prop Desk','#prop-desk-screen'),('Dataset','#datasets-screen')]:
+    playwright.expect(nav.locator('a')).to_have_count(4)
+    for name, selector in [('Research','#research-screen'),('Campaigns','#campaigns-screen'),('Prop Desk','#prop-desk-screen'),('Dataset','#datasets-screen')]:
         nav.get_by_role('link',name=name,exact=True).click()
         playwright.expect(page.locator(selector)).to_be_visible()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')

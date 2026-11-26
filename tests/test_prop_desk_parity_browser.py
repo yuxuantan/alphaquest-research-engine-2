@@ -97,6 +97,7 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
 
         desk.get_by_role('link', name='← Prop Desk setup').click()
         desk.get_by_role('button', name='Optimise', exact=True).click()
+        desk.get_by_label('Allocation search').select_option('legacy')
         with page.expect_response('**/api/prop-desk/optimizer/subsets') as ranked:
             desk.get_by_role('button', name='Run Optimise').click()
         assert ranked.value.status == 202, ranked.value.text()

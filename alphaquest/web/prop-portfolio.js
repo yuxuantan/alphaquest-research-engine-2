@@ -4,7 +4,8 @@
   const money=v=>Number(v??0).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const phases=['evaluation','funded'];
   const sizeLabel=p=>p.kind==='percentage_risk'?p.risk_percent+'%':p.kind==='fixed_dollar_risk'?money(p.risk_dollars):p.contracts+' MNQ';
-  const sourceName=s=>s.strategy_id.replaceAll('_',' ')+` · Broad ${s.broad_trial} / Narrow ${s.narrow_trial}`;
+  const sourceName=s=>s.strategy_id.replaceAll('_',' ');
+  const sourceDetails=s=>`${s.dataset.name} · ${s.source_backtest_id.slice(0,8)} · Broad ${s.broad_trial} / Narrow ${s.narrow_trial}`;
   function tableOf(headers,rows){
     const table=node('table',undefined,'library-table'),head=node('thead'),top=node('tr'),body=node('tbody');
     for(const label of headers){const th=node('th',label);th.scope='col';top.append(th);}
@@ -15,7 +16,20 @@
   const read=async(url,method='GET',body)=>{const r=await window.portalLoading.fetch(url,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const value=await r.json();if(!r.ok)throw Error(typeof value.detail==='string'?value.detail:JSON.stringify(value.detail));return value;};
   const link=(p,text,href)=>{const a=node('a',text,'workflow-inline-link');a.href=href;p.append(a);};
   let generation=0,timer;
-  window.propPortfolio={async render(host,saved=null){
+  async function savedRecommendation(id){
+    if(!id)return null;
+    if(!/^[0-9a-f]{32}$/.test(id))throw Error('Invalid saved recommendation link.');
+    const job=await read('/api/prop-desk/'+id);
+    const search=job.report?.recommendation;
+    const winner=search?.ranking[0];
+    const group=search?.groups.find(row=>row.id===winner?.combination);
+    const allocation=group?.candidates.find(row=>row.id===winner?.candidate);
+    if(job.status!=='complete'||!allocation)throw Error('Open a completed strategy recommendation to use its allocation.');
+    return {id,phase:job.phase,profile:job.report.configuration.profile_id,members:group.members.map((index,i)=>({
+      ...job.report.configuration.members[index],name:search.members[index].strategy.replaceAll('_',' '),mnq:allocation.targets[i],
+    }))};
+  }
+  window.propPortfolio={async render(host,saved=null,query=new URLSearchParams()){
     const turn=++generation;clearTimeout(timer);const alive=()=>turn===generation&&location.hash.startsWith('#prop-sim');
     host.replaceChildren();const head=node('section',undefined,'panel prop-portfolio-panel');head.append(node('h2','Portfolio allocation & replacement cash flow'));
     host.append(head);
@@ -100,6 +114,8 @@
     }
     const loadSources=()=>read('/api/prop-sim/portfolio/candidates')
       .then(value=>({value}),error=>({error}));
+    const handoffId=query.get('recommendation');
+    const handoffRequest=savedRecommendation(handoffId).then(value=>({value}),error=>({error}));
     const initialSources=loadSources();
     const loading=window.portalLoading.message('Loading Portfolio settings…');
     head.append(loading);
@@ -108,7 +124,7 @@
       [defaults,history]=await Promise.all([read('/api/prop-sim/defaults'),read('/api/prop-sim')]);
     }catch(error){
       if(alive()){window.portalLoading.clear(loading);loading.textContent='Could not load Portfolio settings. '+error.message;
-        const retry=node('button','Try again','button secondary');retry.onclick=()=>window.propPortfolio.render(host);head.append(retry);}
+        const retry=node('button','Try again','button secondary');retry.onclick=()=>window.propPortfolio.render(host,null,query);head.append(retry);}
       return;
     }
     if(!alive())return;
@@ -118,17 +134,28 @@
     const choices=node('fieldset',undefined,'portfolio-picks');
     choices.append(node('legend','Strategies to compare'),node('p','Choose up to four configurations from the same dataset. Shared-account signal ties follow the order shown.','field-help'));
     const picks=[];
+    const pickerLabel=node('label','Saved strategy'),picker=node('select'),add=node('button','Add to comparison','button secondary');
+    picker.id='portfolio-strategy-picker';
+    picker.add(new Option('Choose a qualified strategy',''));
+    picker.disabled=true;add.disabled=true;add.type='button';
+    pickerLabel.append(picker);
+    const pickerActions=node('div',undefined,'prop-desk-actions');pickerActions.append(pickerLabel,add);choices.append(pickerActions);
+    const handoffStatus=node('section',undefined,'portfolio-handoff');
+    handoffStatus.setAttribute('aria-live','polite');
+    if(handoffId){handoffStatus.append(node('p','Loading saved recommendation…','field-help'));form.append(handoffStatus);}
     const sourceStatus=window.portalLoading.message('Checking qualified configurations…');
     const retrySources=node('button','Retry loading configurations','button secondary');
     retrySources.type='button';retrySources.hidden=true;
     choices.append(sourceStatus,retrySources);
     function addSource(source,index){
-      const label=node('label',undefined,'portfolio-pick'),input=node('input'),copy=node('span'),reason=node('small');
+      const label=node('label',undefined,'portfolio-pick'),input=node('input');
+      const copy=window.propDeskBasket.strategyIdentity(sourceName(source),sourceDetails(source)),reason=node('small');
       input.type='checkbox';input.id='portfolio-source-'+index;input.className='portfolio-source';
       reason.id=input.id+'-reason';input.setAttribute('aria-describedby',reason.id);
-      copy.append(node('strong',sourceName(source)),node('small',source.dataset.name),reason);
+      copy.append(reason);
       if(source.portfolio_parity)copy.append(node('small','Replay parity verified against the qualified campaign.'));
       label.append(input,copy);choices.append(label);
+      picker.add(new Option(`${sourceName(source)} · ${sourceDetails(source)}`,String(index)));
       if(source.portfolio_ineligible_reason?.includes('current strategy implementation'))
         link(choices,'View saved campaign',
           '#campaigns/workflows/'+source.selection.workflow_id.replaceAll('-','')+'/oos');
@@ -171,6 +198,7 @@
     const run=node('button','Run portfolio search','button primary');run.type='submit';run.id='portfolio-run';
     form.append(run,status);
     const chosen=()=>picks.filter(p=>p.input.checked);
+    const picked=()=>picker.value===''?null:picks[Number(picker.value)];
     const isFixed=()=>fields.sizing_kind.value==='fixed_contracts';
     const limits=()=>defaults.profiles[fields.profile_id.value].size_limits;
     const placements=()=>fields.placement.value==='both'?['separate','shared']:[fields.placement.value];
@@ -202,6 +230,8 @@
         input.disabled=Boolean(why);reason.textContent=why.includes('current strategy implementation')?
           'This saved source predates the current strategy implementation. A new qualified campaign source is required.':why;
       }
+      const current=picked();
+      add.disabled=!current||current.input.checked||current.input.disabled;
       const grids=phases.map(phaseGrid),accountCount=Number(fields.maximum_accounts.value),cap=Number(effort.value);
       const valid=grids.every(Boolean)&&Number.isInteger(accountCount)&&accountCount>=1&&accountCount<=4&&Number.isInteger(cap)&&cap>=8&&cap<=128;
       let count=1n;
@@ -254,20 +284,63 @@
       fields.evaluation_price.value=fields.evaluation_consistency_percent.value==='50'?'':defaults.profiles[fields.profile_id.value].defaults.evaluation_price;
     };
     fields.sizing_kind.onchange=()=>syncSizing(true);
+    add.onclick=()=>{
+      const current=picked();
+      if(!current||add.disabled)return;
+      current.input.checked=true;
+      update();
+    };
     form.addEventListener('input',update);form.addEventListener('change',update);
     fields.monthly_cap.required=true;fields.maximum_accounts.required=true;fields.maximum_accounts.step='1';
     syncAccount();
-    function showSources({value,error}){
+
+    function applyRecommendation(handoff, imported){
+      handoffStatus.replaceChildren(node('h3','From Strategy & sizing'),node('p',handoff.members.map(member=>
+        `${member.name} · ${member.source_backtest_id.slice(0,8)} · ${member.mnq} MNQ`).join(' / '),'field-help'));
+      link(handoffStatus,'Open saved recommendation','#prop-desk?analysis='+handoff.id);
+      const issues=handoff.members.flatMap((member,index)=>{
+        const match=imported[index];
+        const reason=match?.portfolio_ineligible_reason || (!member.oos_backtest_id ? 'The saved allocation has no linked OOS source.'
+          : !match ? 'The exact IS and OOS sources are unavailable in the qualified Portfolio list.' : '');
+        return reason?[`${member.name} · ${member.source_backtest_id.slice(0,8)}. ${reason}`]:[];
+      });
+      if(issues.length){
+        handoffStatus.append(node('p','The saved group could not be applied in full. Choose a compatible portfolio below.','field-help'));
+        const list=node('ul');issues.forEach(issue=>list.append(node('li',issue)));handoffStatus.append(list);
+        return;
+      }
+      for(const pick of picks)pick.input.checked=imported.includes(pick.source);
+      fields.profile_id.value=handoff.profile;
+      syncAccount();
+      fields.sizing_kind.value='fixed_contracts';
+      syncSizing(true);
+      const sizes=handoff.members.map(member=>member.mnq);
+      fields[handoff.phase+'_minimum'].value=Math.min(...sizes);
+      fields[handoff.phase+'_maximum'].value=Math.max(...sizes);
+      fields[handoff.phase+'_step'].value=1;
+      handoffStatus.append(node('p',`${handoff.phase==='evaluation'?'Evaluation':'Funded'} sizing starts with the range of the saved targets. Portfolio searches that range and can choose other sizes. Shared accounts use one open trade at a time.`,'field-help'));
+    }
+
+    async function showSources({value,error}){
+      if(!alive())return;
+      const {value:handoff,error:handoffError}=await handoffRequest;
       if(!alive())return;
       window.portalLoading.clear(sourceStatus);
+      if(handoffError)handoffStatus.replaceChildren(node('p',handoffError.message,'field-help'));
       if(error){
         sourceStatus.textContent='Could not load qualified configurations. '+error.message;
         retrySources.hidden=false;
-      }else if(value.items.length){
-        sourceStatus.remove();
-        retrySources.remove();
-        value.items.forEach(addSource);
-      }else sourceStatus.textContent='No campaign configurations have qualified for Prop Sim yet.';
+        if(handoff)handoffStatus.replaceChildren(node('p','Retry loading configurations to apply the saved recommendation.','field-help'));
+      }else{
+        if(value.items.length){sourceStatus.remove();retrySources.remove();}
+        else sourceStatus.textContent='No campaign configurations have qualified for Portfolio yet.';
+        const imported=handoff?.members.map(member=>value.items.find(source=>source.source_backtest_id===member.source_backtest_id&&
+          member.oos_backtest_id&&source.oos_report_id===member.oos_backtest_id))||[];
+        const inOrder=imported.filter(Boolean);
+        [...inOrder,...value.items.filter(source=>!inOrder.includes(source))].forEach(addSource);
+        picker.disabled=!value.items.length;
+        if(handoff)applyRecommendation(handoff,imported);
+      }
       update();
     }
     retrySources.onclick=()=>{

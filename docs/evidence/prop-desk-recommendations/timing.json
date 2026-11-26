@@ -1,0 +1,18 @@
+{
+  "evaluation": {
+    "click_to_rank_seconds": 0.8985919169499539,
+    "click_to_winning_evidence_seconds": 1.0571994579513557,
+    "reopen_seconds": 0.06734624999808148,
+    "is_seconds": 0.1430621249601245,
+    "source_seconds": 0.02246087504317984,
+    "worker_and_recheck_seconds": 0.007919416995719075
+  },
+  "funded": {
+    "click_to_rank_seconds": 0.8816536660306156,
+    "click_to_winning_evidence_seconds": 1.0196131659904495,
+    "reopen_seconds": 0.0769204999669455,
+    "is_seconds": 0.5134017919772305,
+    "source_seconds": 0.01942941697780043,
+    "worker_and_recheck_seconds": 0.008495207992382348
+  }
+}

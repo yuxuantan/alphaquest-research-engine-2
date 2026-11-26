@@ -15823,3 +15823,215 @@ while creating a backtest fixture for the dataset-tampering test. The isolated
 retry passed. Both standalone overlap arithmetic checks passed after fixing
 the screen’s NQ-to-MNQ conversion. The temporary browser servers stopped at
 teardown.
+
+### Prop Desk recommendations and phased evidence — 2026-11-26
+
+**Prop Desk → Optimise → Allocation search** defaults to **Individual MNQ**.
+Pick up to four qualified configurations from the same saved dataset and set the
+minimum strategy count and total MNQ range. Whole-MNQ targets are positive for
+included strategies. An excluded strategy has zero exposure. Strategy weights
+retain their role in ordering simultaneous signals. They also define the weighted
+baseline. They do not set the individual targets. Choose **Keep overlaps ·
+sequential MAE** to apply that existing execution model. **Weighted · quick**
+uses the current floor allocation over the total-size range with duplicate
+vectors collapsed. **Weighted · full evidence** opens the earlier optimiser,
+including its eager per-subset evidence and original report format.
+
+A small search scores every feasible vector. Above 24 vectors, every feasible
+subset gets a deterministic screening budget. Starting vectors contain balanced
+counts, feasible allocations from the entered weights, and solo recommendations
+where available. Up to nine candidates per subset are screened on 96 paired
+paths using one-contract changes and transfers. The best two and the best
+screened weighted baseline are confirmed using the normal 1,000 paths. A
+bounded report says **Best tested** and includes the candidates and path counts.
+The smaller total wins tied sizing scores, followed by pass timing for
+Evaluation and a deterministic allocation order. For each subset the Funded
+sizing metric is mean receipts, using the selected First year or Account life
+horizon. The final Funded rank uses payout probability and the saved timing
+preference for near ties. An incomplete lifetime is marked provisional.
+
+The recommendation seals the IS scores first. It then queues a child for the
+winner’s paths, historical equity, admitted trades, and frozen OOS assessment.
+**Open frozen Simulation** opens that report. Other rows and tested allocations
+create their child on inspection. The parent saves source and model identity,
+paired seeds, ranks, timings, and the tested family. Source verification and
+report sealing run through the normal AnalysisStore. The same verified request
+reopens the canonical job. An in-memory allocation-score cache is bounded to
+4,096 items and binds the IS source evidence, complete common observed window,
+provider and kernel identity, settings, weights, targets, and seeds. OOS cannot
+enter that key or the ranking. The combined MAE screen remains advisory in
+frozen Simulation. Funded tiers are shown by target and opening tier.
+
+Desktop and mobile use a single Prop Desk top-level destination. **Independent
+sizing** and **Portfolio & cash flow** open the existing advanced workflows
+under the Prop Desk workspace navigation. Existing `#prop-sim` and
+`#prop-sim?analysis=…` bookmarks use their existing report readers. **Prop job
+history** opens the existing Prop analyses filter. The campaign source and phase
+owners still supply qualification and execution.
+
+#### Reproduction and independent checks
+
+```sh
+.venv/bin/python -m pytest -q tests/test_prop_desk_recommendation.py \
+  tests/test_prop_desk_overlap.py tests/test_prop_desk_parity.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_recommendation_browser.py \
+  --basetemp /tmp/aq-desk-recommendation-proof
+```
+
+The labelled synthetic browser fixture imports ordinary dataset bars and runs
+one- and two-minute saved strategy configurations with $5 per NQ side. It uses
+the calculator-only qualification fixture and verifies that later warm
+requests do not parse the bars. In Optimise set two members minimum, 3–4 MNQ and
+sequential MAE. Expect five tested allocations. At targets `[a, b]` historical
+net P&L is `9 × ($399a + $299b)` over eight IS days and one OOS day. Run Apex
+Evaluation on desktop and Funded on mobile. Open the frozen Simulation, download
+the admitted trades, and check that their net sum matches the equity endpoint.
+Inspect `3 + 1` separately from the winning row to verify that equal total MNQ
+does not collapse incompatible allocations. Reopen the ranking and confirm the
+same sealed report. Visit both advanced workspaces through Prop Desk navigation.
+
+A separate one-session arithmetic fixture uses `$190a + $20b` of daily net.
+The 1+2 and 2+1 allocations pass Evaluation in 14 and 8 days respectively.
+Apex Funded never has a $250 qualifying day at 1+2. At 2+1 it collects the
+first payout on day 9 and the full $13,000 ladder. The tests also compare
+accelerated account paths with the original engines for both profiles and
+both phases, including tiered Funded quantities. Four-strategy timing uses
+4–6 total MNQ and 175 feasible allocations with the same observed IS dates.
+It warms a three-strategy subset, adds the fourth strategy, runs the bounded
+search, reopens the result, and compares against a fixture-only exhaustive
+search and the weighted full-evidence runner.
+
+#### Measured latency on qualified saved sources
+
+The real comparison used an isolated copy of the local catalogue and four
+currently qualified `ofb_bars_NQ` configurations with linked OOS evidence.
+Apex 50K EOD, sequential MAE, 4–6 total MNQ, 1,034 common IS sessions, and
+1,000 paths per confirmed allocation. A three-strategy search warmed the inputs
+and scores before adding the fourth. The bounded search tested 105 of 175
+feasible allocations. Recent score hits and detailed stage timings are in the
+measurement file.
+
+| Phase | Run to sealed IS recommendation | Reopen saved report | Repeat Run with source recheck |
+| --- | ---: | ---: | ---: |
+| Evaluation | 2.35 s | 0.06 s | 0.94 s |
+| Funded First year | 5.60 s | 0.07 s | 1.41 s |
+
+Funded serial scoring previously took 9.49 s end to end. Long-history Funded
+finalists now use the existing Runtime's bounded worker pool. The four-worker
+measurement preserved the serial ranking hash. Funded exceeded the proposed
+five-second target by 0.60 s on this example. These are observed local timings
+for one reference pool. Account life and other histories can take longer.
+
+To repeat with the same real reference catalogue, copy the checked-in benchmark
+into an isolated catalogue clone and run it from the repository root.
+
+```sh
+aq_rec_bench=$(mktemp -d /tmp/aq-prop-desk-benchmark.XXXXXX)
+cp -cR data "$aq_rec_bench/data"
+cp docs/evidence/prop-desk-recommendations/benchmark.py "$aq_rec_bench/benchmark.py"
+PYTHONPATH=. .venv/bin/python "$aq_rec_bench/benchmark.py"
+```
+
+The script uses the saved source links from report
+`245639096bad4e07a6af8115b0161c69` and revalidates qualification through the
+normal catalogue and request routes. It writes `real-timing.json` in the
+scratch directory. Use a fresh clone for uncached timing. Bridge's allocation
+and execution rules remain comparison gaps.
+
+[Qualified-source timing](evidence/prop-desk-recommendations/real-timing.json) ·
+[Serial timing](evidence/prop-desk-recommendations/real-serial-timing.json) ·
+[Serial and parallel ranking comparison](evidence/prop-desk-recommendations/real-ranking-verification.json)
+
+#### Saved browser and exhaustive-comparator outputs
+
+The synthetic product journey returned Evaluation at `2 + 1` and Funded at
+`1 + 2`. The Funded OOS-only change reduced the fixed row's payout probability
+from 100% to zero while retaining the same IS ranking hash. In the four-strategy
+synthetic case, the bounded and exhaustive winners had identical objective
+values for each phase. The weighted quick and full-evidence runs matched each
+subset's fixed tested counts and account outcomes. In that fixture the quick
+weighted runner returned its sealed IS result in 0.11 s for Evaluation and
+0.61 s for Funded. The full-evidence runner took 4.06 s and 6.76 s respectively.
+The real-source latency above is the stronger user-facing benchmark.
+
+[Evaluation ranking](evidence/prop-desk-recommendations/evaluation-ranking.json) ·
+[Desktop screenshot](evidence/prop-desk-recommendations/evaluation-ranking.png) ·
+[Frozen Evaluation and OOS](evidence/prop-desk-recommendations/evaluation-frozen.json) ·
+[Evaluation admitted trades](evidence/prop-desk-recommendations/evaluation-admitted-trades.csv) ·
+[Funded ranking](evidence/prop-desk-recommendations/funded-ranking.json) ·
+[Mobile screenshot](evidence/prop-desk-recommendations/funded-ranking.png) ·
+[Frozen Funded and OOS](evidence/prop-desk-recommendations/funded-frozen.json) ·
+[Funded admitted trades](evidence/prop-desk-recommendations/funded-admitted-trades.csv) ·
+[Flat OOS comparison](evidence/prop-desk-recommendations/funded-flat-oos-frozen.json) ·
+[Browser timing](evidence/prop-desk-recommendations/timing.json) ·
+[Four-strategy synthetic comparator](evidence/prop-desk-recommendations/four-strategy-timing.json)
+
+The focused backend run passed 11 checks. The final browser run passed the
+recommendation journey, synthetic timing comparator and original weighted
+Optimise journey. Both affected navigation checks also passed. The original
+weighted fixture had a setup failure in an earlier run and passed on the
+final retry. Temporary browser portals stopped at teardown. The real probe
+ran in scratch catalogue copies.
+
+### Prop Desk workspace tabs and recommendation handoff (2026-11-26)
+
+Prop Desk has two workspaces. **Strategy & sizing** opens Simulation and
+Optimise. **Advanced single-strategy analysis** opens the existing independent
+sizing workflow and carries the saved backtest when a single configuration
+is selected. **Portfolio & cash flow** opens the existing account-placement
+and replacement cash-flow workflow. The header's **Saved runs** action opens
+Job history with the prop analysis filter applied. Existing analysis links
+still open the original reports.
+
+From a sealed recommendation, **Use in Portfolio setup** checks for the exact
+IS and OOS backtests in Portfolio's qualified source list. A compatible group
+prefills the strategies in saved order, the account profile and the range of
+whole-MNQ targets for the recommended phase. The other phase uses the existing
+fixed-contract defaults. The handoff displays each saved target and links back
+to the ranking. Portfolio searches its configured ranges and can choose a
+different allocation. Its existing shared-account execution permits one open
+trade at a time. Opening setup leaves job creation to **Run portfolio search**.
+
+#### Reproduce on the running portal
+
+1. Open `http://localhost:8000/#prop-desk` at desktop width. Add Twin
+   continuation `364df135` and click **Advanced single-strategy analysis**.
+   Expect the **Strategy & sizing** tab to remain active and **Open IS source
+   backtest** to link to `364df13574914ca1b88d33caa10b364e`.
+2. At mobile width, open
+   `http://localhost:8000/#prop-desk?analysis=fc78f98e652b49a0974cd90e9655bb29`
+   and click **Use in Portfolio setup**. Expect **Portfolio & cash flow** to be
+   active and the panel to show Twin continuation, `364df135` and 5 MNQ. This
+   saved source predates the current strategy implementation. Expect zero
+   strategies to be preselected and the Run button to remain disabled.
+3. Click **Saved runs**, find `fc78f98e652b49a0974cd90e9655bb29`, then select
+   **View results** and **Open Prop Desk**. Expect the same sealed
+   recommendation to reopen. The live check sent zero mutating requests.
+
+The mobile synthetic journey used a sealed recommendation built from saved
+backtests and supplied an explicitly eligible Portfolio list at the browser
+boundary. It checked exact IS and OOS identity, kept the saved member order
+despite a reversed list, filled Funded fixed-size bounds from the two targets,
+and retained the default Evaluation maximum of 5 MNQ. Replacing one OOS ID
+left both picks unchecked and displayed the reason. That fixture checks
+setup only. The native replay and eligibility checks remain in the existing
+Portfolio workflow. The real catalogue had six strategy configurations and
+all six required a new qualified source for native Portfolio sizing.
+
+[Desktop Strategy & sizing](evidence/prop-desk-workspace-tabs/strategy-desktop.png) ·
+[Desktop Advanced](evidence/prop-desk-workspace-tabs/advanced-desktop.png) ·
+[Mobile live handoff](evidence/prop-desk-workspace-tabs/portfolio-handoff-mobile.png) ·
+[Mobile synthetic compatible handoff](evidence/prop-desk-workspace-tabs/synthetic-compatible-handoff-mobile.png) ·
+[Live browser observations](evidence/prop-desk-workspace-tabs/live-journey.json)
+
+All four targeted browser checks passed. They used temporary portals that
+stopped at teardown.
+
+```sh
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_prop_desk_recommendation_browser.py::test_recommendation_product_journey \
+  tests/test_workflow_navigation_browser.py::test_prop_sim_empty_qualification_boundary_and_mobile \
+  tests/test_prop_desk_browser.py::test_fixed_prop_desk_product_journey \
+  tests/test_prop_desk_optimizer_browser.py::test_combination_optimizer_product_journey
+```

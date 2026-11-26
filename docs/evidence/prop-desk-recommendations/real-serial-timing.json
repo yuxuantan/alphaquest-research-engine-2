@@ -1,0 +1,50 @@
+{
+  "evaluation": {
+    "three_strategy_seconds": 2.112522249983158,
+    "four_strategy_seconds": 2.3640113750007004,
+    "reopen_seconds": 0.9366163330269046,
+    "observed_is_sessions": 1034,
+    "bounds": [
+      4,
+      6
+    ],
+    "workload": {
+      "account_paths_computed": 27048,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 57,
+      "score_calls": 141,
+      "tested": 105
+    },
+    "stages": {
+      "is_seconds": 1.106196332955733,
+      "source_seconds": 0.5702395830303431,
+      "worker_and_recheck_seconds": 0.22526325000217184
+    },
+    "paths_per_finalist": 1000
+  },
+  "funded": {
+    "three_strategy_seconds": 5.5411307499744,
+    "four_strategy_seconds": 9.49333437497262,
+    "reopen_seconds": 1.6579424999654293,
+    "observed_is_sessions": 1034,
+    "bounds": [
+      4,
+      6
+    ],
+    "workload": {
+      "account_paths_computed": 27048,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 58,
+      "score_calls": 142,
+      "tested": 105
+    },
+    "stages": {
+      "is_seconds": 7.882577874988783,
+      "source_seconds": 0.8678969999891706,
+      "worker_and_recheck_seconds": 0.22277008299715817
+    },
+    "paths_per_finalist": 1000
+  }
+}
