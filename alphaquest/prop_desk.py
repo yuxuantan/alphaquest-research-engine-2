@@ -11,7 +11,7 @@ from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 from pydantic import model_validator
 from starlette.concurrency import run_in_threadpool
 
@@ -181,17 +181,22 @@ class RecommendationLaunch(BasketConfiguration):
     minimum_members: StrictInt = Field(default=1, ge=1, le=desk_recommendation.MAX_MEMBERS)
     allocation_search: Literal['individual', 'weighted'] = 'individual'
     funded_size_rule: Literal['first_year', 'account_life'] | None = None
+    fixed_basket: StrictBool = False
 
     def resolved(self):
         if self.minimum_members > len(self.members) or self.minimum_members > self.maximum_micros:
             raise ValueError('Choose a strategy minimum that fits the selected pool and MNQ cap.')
         if self.phase == 'evaluation' and self.funded_size_rule is not None:
             raise ValueError('Funded sizing presets apply only to Funded searches.')
+        if self.fixed_basket and (self.minimum_members != len(self.members) or self.allocation_search != 'individual'):
+            raise ValueError('Individual Simulation sizing must use every selected strategy.')
         if self.phase == 'funded' and self.observation_sessions is None:
             horizon = 2000 if self.funded_size_rule == 'account_life' else desk_basket.FIRST_YEAR
             configuration = BasketConfiguration.resolved(self.model_copy(update={'observation_sessions': horizon}))
         else:
             configuration = super().resolved()
+        if not self.fixed_basket:
+            del configuration['fixed_basket']
         if self.allocation_search == 'weighted':
             desk_optimizer.workload(len(self.members), self.minimum_members, len(self.members), self.minimum_micros,
                                    self.maximum_micros, configuration['observation_sessions'])
@@ -428,6 +433,42 @@ def recommendation_evidence_key(parent, sha, candidate_id):
     return f'{desk.REQUEST_PREFIX}{parent["phase"]}:recommendation-evidence:{key}'
 
 
+def recommendation_listing(analyses, parent, sha):
+    """Read the account summaries already sealed for this exact recommendation."""
+    search = parent['recommendation']
+    winner = search['ranking'][0]['candidate']
+    keys = {recommendation_evidence_key(parent, sha, row['id']): row['id']
+            for group in search['groups'] for row in group['candidates']}
+    with analyses.connect() as db:
+        db.row_factory = sqlite3.Row
+        placeholders = ','.join('?' for _ in keys)
+        rows = db.execute(f'''SELECT a.*, c.payload AS checks FROM analyses a
+            LEFT JOIN analysis_report_checks c ON c.id=a.id
+            WHERE a.request_hash IN ({placeholders}) ORDER BY a.created DESC''', tuple(keys)).fetchall()
+    assessed, winning = {}, None
+    for row in rows:
+        candidate = keys[row['request_hash']]
+        if candidate == winner and winning is None:
+            winning = public_job(row)
+        if row['status'] != 'complete' or candidate in assessed:
+            continue
+        try:
+            raw = (analyses.root / row['id'] / 'report.json').read_bytes()
+            if sha256(raw).hexdigest() != json.loads(row['checks'] or '{}').get('report.json'):
+                continue
+            child = json.loads(raw)
+            if (child['provenance']['parent_report_sha256'] != sha or
+                    child['configuration']['parent_id'] != parent['id'] or
+                    child['configuration']['candidate_id'] != candidate):
+                continue
+            pair = child['basket']['sizes'][0]['account_comparison']
+        except (OSError, ValueError, KeyError, IndexError):
+            continue
+        assessed[candidate] = dict(id=row['id'], oos_metrics=pair.get('oos_metrics'),
+                                   unavailable=pair.get('unavailable'))
+    return assessed, winning
+
+
 def enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, candidate_id, prepared, dataset):
     group, candidate = desk_recommendation.find_candidate(parent, candidate_id)
     refs = {m[key] for m in parent['configuration']['members'] for key in ('source_backtest_id', 'oos_backtest_id') if m[key]}
@@ -440,6 +481,16 @@ def enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, candi
 def launch_recommendation_evidence(runs, analyses, body, datasets):
     with analyses.lock:
         parent, sha = diagnostic_parent(analyses, body.parent_id)
+        if parent['model_version'] == desk_recommendation.LEGACY_VERSION:
+            desk_recommendation.find_candidate(parent, body.candidate_id)
+            key = recommendation_evidence_key(parent, sha, body.candidate_id)
+            with analyses.connect() as db:
+                saved = db.execute("SELECT id FROM analyses WHERE request_hash=? AND status='complete'",
+                                   (key,)).fetchone()
+            if saved:
+                diagnostic_parent(analyses, saved[0])
+                return public_job(analyses.get(saved[0]))
+            raise ResearchConflict('Run Optimise again to generate new allocation evidence for this earlier search.')
     if parent['model_version'] != desk_recommendation.VERSION:
         raise ValueError('Open a saved strategy recommendation to inspect its allocation.')
     configuration = parent['configuration']
@@ -733,7 +784,8 @@ def defaults():
                 basket_first_year=desk_basket.FIRST_YEAR, basket_life_cutoff=2000,
                 optimizer=dict(max_pairs=desk_optimizer.MAX_PAIRS, max_pair_sessions=desk_optimizer.MAX_PAIR_SESSIONS,
                                recommendation_max_members=desk_recommendation.MAX_MEMBERS,
-                               recommendation_exact_limit=desk_recommendation.EXACT_LIMIT))
+                               recommendation_exact_limit=desk_recommendation.EXACT_LIMIT,
+                               recommendation_full_screen_limit=desk_recommendation.FULL_SCREEN_LIMIT))
 
 
 def catalogue_page(runs, candidates, offset, limit):
@@ -861,11 +913,8 @@ def get(id: UUID, request: Request):
             if 'recommendation' in report:
                 result['report']['recommendation'] = report['recommendation']
                 sha = sha256((analyses.root / id.hex / 'report.json').read_bytes()).hexdigest()
-                winner = report['recommendation']['ranking'][0]['candidate']
-                key = recommendation_evidence_key(report, sha, winner)
-                with analyses.connect() as db:
-                    child = db.execute('SELECT id FROM analyses WHERE request_hash=? ORDER BY created DESC LIMIT 1', (key,)).fetchone()
-                result['report']['winning_evidence'] = public_job(analyses.get(child[0])) if child else None
+                assessed, winner = recommendation_listing(analyses, report, sha)
+                result['report'].update(allocation_evidence=assessed, winning_evidence=winner)
             if 'optimizer' in report:
                 result['report']['optimizer'] = report['optimizer']
                 if report['model_version'] != desk_overlap.version(desk_parity.SEARCH_VERSION, report['configuration']):

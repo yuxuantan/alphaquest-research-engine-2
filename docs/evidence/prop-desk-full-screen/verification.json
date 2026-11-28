@@ -1,0 +1,88 @@
+{
+  "evaluation": {
+    "previous_report": "32a9c78adbb74f84a525ffc44fe45154",
+    "updated_report": "f9b60bdb877c4e4fafee31a9d5e868c6",
+    "previous_matching_subsets": 4,
+    "updated_matching_subsets": 15,
+    "largest_path_stage_counts": {
+      "96": 123,
+      "1000": 41,
+      "384": 11
+    },
+    "previous_is_seconds": 2.2377373339841142,
+    "updated_is_seconds": 3.5641608749865554,
+    "previous_winner": {
+      "subset": 3,
+      "members": [
+        2
+      ],
+      "allocation": [
+        6
+      ],
+      "probability": 0.288,
+      "receipts": 0.0,
+      "median_day": 12.0
+    },
+    "updated_winner": {
+      "subset": 3,
+      "members": [
+        2
+      ],
+      "allocation": [
+        6
+      ],
+      "probability": 0.288,
+      "receipts": 0.0,
+      "median_day": 12.0
+    }
+  },
+  "funded": {
+    "previous_report": "56f42016125a48d281db44e373990ce0",
+    "updated_report": "96e96e3c1087463380d531873b1c3e9b",
+    "previous_matching_subsets": 9,
+    "updated_matching_subsets": 12,
+    "largest_path_stage_counts": {
+      "96": 51,
+      "1000": 39,
+      "384": 85
+    },
+    "previous_is_seconds": 8.7086750419694,
+    "updated_is_seconds": 22.419259709015023,
+    "previous_winner": {
+      "subset": 15,
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        2,
+        1,
+        2
+      ],
+      "probability": 0.497,
+      "receipts": 2896.0,
+      "median_day": 51
+    },
+    "updated_winner": {
+      "subset": 15,
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        1,
+        1,
+        3
+      ],
+      "probability": 0.525,
+      "receipts": 3057.5,
+      "median_day": 54
+    }
+  }
+}

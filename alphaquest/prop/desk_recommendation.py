@@ -4,9 +4,9 @@ from collections import Counter, OrderedDict
 import csv
 from functools import lru_cache
 from itertools import combinations
-from math import comb
+from math import comb, sqrt
 from pathlib import Path
-from statistics import median
+from statistics import mean, median, stdev
 from threading import Lock
 
 import numpy as np
@@ -16,11 +16,15 @@ from . import desk, desk_basket as basket, desk_optimizer as optimizer, desk_ove
 from . import lucid_backend, native_backend, parallel
 from .adapter import canonical, digest as file_digest
 
-VERSION = 'prop-desk-recommendation-v1'
+VERSION = 'prop-desk-recommendation-v2'
+LEGACY_VERSION = 'prop-desk-recommendation-v1'
 DETAIL_VERSION = 'prop-desk-recommendation-evidence-v1'
 MAX_MEMBERS = 4
 EXACT_LIMIT = 24
+FULL_SCREEN_LIMIT = 256
 SCREEN_PATHS = 96
+REFINEMENT_PATHS = 384
+PAIRED_SE_MULTIPLIER = 2
 SCREEN_PER_SUBSET = 9
 FINALISTS = 2
 CACHE_LIMIT = 4096
@@ -213,9 +217,17 @@ def save_score(key, value):
 
 
 def score_task(task):
-    days, targets, prepared, configuration, seeds = task
-    metrics, _, rules = evaluate(days, targets, prepared, configuration, seeds)
-    return metrics, rules
+    days, targets, prepared, configuration, seeds, collect_outcomes = task
+    metrics, paths, rules = evaluate(days, targets, prepared, configuration, seeds)
+    outcomes = ()
+    if collect_outcomes:
+        if configuration['phase'] == 'evaluation':
+            outcomes = tuple(int(path['outcome'] == 'passed') for path in paths)
+        else:
+            horizon = metrics['reporting_sessions']
+            outcomes = tuple(sum(amount for day, amount in path['trader_payouts'] if day <= horizon)
+                             for path in paths)
+    return metrics, rules, outcomes
 
 
 def size_key(row, configuration):
@@ -225,6 +237,18 @@ def size_key(row, configuration):
         days = metrics['median_trading_days_to_target']
         return -metrics['probabilities']['passed'], total, (days if days is not None else float('inf')), row['targets']
     return -metrics['mean_trader_receipts'], total, row['targets']
+
+
+def refine_targets(leaders, outcomes):
+    leader = outcomes[leaders[0]['targets']]
+    retained = [row['targets'] for row in leaders[:FINALISTS]]
+    for row in leaders[FINALISTS:]:
+        targets = row['targets']
+        differences = [a - b for a, b in zip(leader, outcomes[targets], strict=True)]
+        error = stdev(differences) / sqrt(len(differences))
+        if mean(differences) <= PAIRED_SE_MULTIPLIER * error:
+            retained.append(targets)
+    return retained
 
 
 def rank(winners, configuration, count):
@@ -252,6 +276,7 @@ def calculate(prepared, configuration, progress):
               for group, w in zip(groups, group_weights, strict=True)]
     total = sum(counts)
     exact = weighted_mode or total <= EXACT_LIMIT
+    full_screen = not exact and total <= FULL_SCREEN_LIMIT
     if not total:
         raise ValueError('No feasible allocation. Increase maximum total MNQ or lower the strategy minimum.')
     law = desk_overlap.LAW if configuration.get('overlap_policy') else basket.LAW
@@ -279,22 +304,24 @@ def calculate(prepared, configuration, progress):
         if not weighted_mode:
             baseline = [targets for targets in baseline if low_here <= sum(targets) <= high]
         rows = {}
+        screen_outcomes = {}
 
-        def test(targets, n, defer=False):
+        def test(targets, n, defer=False, *, collect_outcomes=False):
             nonlocal applied, cache_hits, tests, path_count
             previous = rows.get(targets)
             if previous and previous['paths'] == n:
                 return previous
-            key = (identity, source_key, tuple(w), targets, seeds[:n])
+            key = (identity, source_key, tuple(w), targets, seeds[:n], collect_outcomes)
 
             cached = cached_score(key)
             tests += 1
             result = dict(id=f'{number}-' + '-'.join(map(str, targets)), combination=number,
                           targets=targets, paths=n, screened=previous is not None,
+                          path_stages=[*(previous['path_stages'] if previous else []), n],
                           tested_total=weighted_totals[targets] if weighted_mode else sum(targets),
                           weighted_baseline=targets in baseline)
             if cached is not None:
-                result['metrics'], applied = cached
+                result['metrics'], applied, outcomes = cached
                 cache_hits += 1
             else:
                 path_count += n
@@ -303,12 +330,14 @@ def calculate(prepared, configuration, progress):
                 if defer:
                     days = {day: [(member, {'scenario': trade['scenario']}) for member, trade in stream]
                             for day, stream in days.items()}
-                task = (days, targets, worker_prepared, configuration, seeds[:n])
+                task = (days, targets, worker_prepared, configuration, seeds[:n], collect_outcomes)
                 if defer:
                     pending.append((key, result, task))
                 else:
-                    result['metrics'], applied = value = score_task(task)
+                    result['metrics'], applied, outcomes = value = score_task(task)
                     save_score(key, value)
+            if collect_outcomes:
+                screen_outcomes[targets] = outcomes
             rows[targets] = result
             return result
 
@@ -318,6 +347,26 @@ def calculate(prepared, configuration, progress):
                 mixes = baseline if weighted_mode else positive_mixes(len(group), low, high)
                 for choice in mixes:
                     test(choice, len(seeds), defer)
+            elif full_screen:
+                screening = min(SCREEN_PATHS, len(seeds))
+                refinement = min(REFINEMENT_PATHS, len(seeds))
+                for choice in positive_mixes(len(group), low, high):
+                    test(choice, screening, collect_outcomes=screening < refinement)
+                if screening < refinement:
+                    leaders = sorted(rows.values(), key=lambda row: size_key(row, configuration))
+                    advancing = refine_targets(leaders, screen_outcomes)
+                    baseline_row = next((row for row in leaders if row['targets'] in baseline), None)
+                    if baseline_row and baseline_row['targets'] not in advancing:
+                        advancing.append(baseline_row['targets'])
+                    for choice in advancing:
+                        test(choice, refinement)
+                    leaders = sorted((rows[choice] for choice in advancing), key=lambda row: size_key(row, configuration))
+                    finalists = [row['targets'] for row in leaders[:FINALISTS]]
+                    baseline_row = next((row for row in leaders if row['targets'] in baseline), None)
+                    if baseline_row and baseline_row['targets'] not in finalists:
+                        finalists.append(baseline_row['targets'])
+                    for choice in finalists:
+                        test(choice, len(seeds), defer)
             else:
                 screening = min(SCREEN_PATHS, len(seeds))
                 totals = sorted({low_here, (low_here + high) // 2, high})
@@ -353,7 +402,7 @@ def calculate(prepared, configuration, progress):
             notify=lambda done, total, workers, _: progress(f'Confirming Funded allocations · {done}/{total}'),
             cancel=lambda: None)
         for (key, row, _), value in zip(pending, computed, strict=True):
-            row['metrics'], applied = value
+            row['metrics'], applied, _ = value
             save_score(key, value)
     for group in results:
         if group['unavailable']:
@@ -366,7 +415,10 @@ def calculate(prepared, configuration, progress):
     ranking = rank(winners, configuration, len(seeds))
     return dict(law=law, ranking=ranking, ranking_sha256=digest(ranking), groups=results,
                 is_days=prepared['is_days'], oos_days=desk_parity.common_sessions(prepared),
-                search_policy=dict(exact_limit=EXACT_LIMIT, screening_paths=SCREEN_PATHS,
+                search_policy=dict(method='exhaustive' if exact else 'full_screen' if full_screen else 'local_screen',
+                                   exact_limit=EXACT_LIMIT, full_screen_limit=FULL_SCREEN_LIMIT,
+                                   refinement_paths=REFINEMENT_PATHS, paired_se_multiplier=PAIRED_SE_MULTIPLIER,
+                                   screening_paths=SCREEN_PATHS,
                                    screened_per_subset=SCREEN_PER_SUBSET, finalists=FINALISTS,
                                    retain_best_screened_weighted_baseline=True),
                 workload=dict(feasible=total, tested=sum(len(group['candidates']) for group in results),

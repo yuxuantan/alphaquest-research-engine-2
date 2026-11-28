@@ -23,6 +23,69 @@
     return identity;
   }
 
+  function accountSummary(cell, phase, sample, {paths, mode, missing}={}) {
+    if (!sample) {
+      cell.textContent = missing || 'Unavailable';
+      return;
+    }
+    const denominator = sample.path_count ?? paths;
+    const rate = (label, value, count) => value == null ? `${label} —` :
+      `${label} ${pct(value)}` + (count == null || !denominator ? '' : ` (${count.toLocaleString()}/${denominator.toLocaleString()})`);
+    if (phase === 'evaluation') {
+      const rates = sample.probabilities || {};
+      const count = sample.outcome_counts || {};
+      cell.append(node('strong', rate('Pass', rates.passed, count.passed)),
+        node('small', rate('Breach', rates.breached, count.breached)),
+        node('small', rates.provider_expired == null
+          ? rate('Cutoff', rates.observation_cutoff, count.observation_cutoff)
+          : rate('Expiry', rates.provider_expired, count.provider_expired)),
+        node('small', `Median pass day ${sample.median_trading_days_to_target ?? '—'}`));
+    } else {
+      const receipts = mode === 'account_life' || sample.reporting_sessions ? sample.mean_trader_receipts
+        : sample.first_year_mean_receipts ?? sample.mean_trader_receipts;
+      cell.append(node('strong', receipts == null ? 'Mean receipts —' : `${usd(receipts)} mean receipts`),
+        node('small', rate('Any payout', sample.probability_any_payout, sample.milestones?.[0]?.reached)),
+        node('small', rate('Breach before payout', sample.probability_breach_before_first_payout)),
+        node('small', `Median first payout day ${sample.milestones?.[0]?.median_trading_day ?? '—'}`));
+      if (sample.open_at_cutoff != null) cell.append(node('small', `${sample.open_at_cutoff.toLocaleString()} open at cutoff`));
+    }
+  }
+
+  function sizeRanking(phase, mode) {
+    const region = node('div', undefined, 'prop-desk-ranking-scroll prop-desk-size-ranking');
+    region.setAttribute('role', 'region');
+    region.setAttribute('aria-label', 'Ranked tested sizes');
+    region.tabIndex = 0;
+    const table = node('table');
+    const header = table.createTHead().insertRow();
+    for (const title of ['Rank', 'Total MNQ', 'Targets by member', 'Paths', 'IS outcomes', 'OOS outcomes', '']) {
+      const cell = node('th', title);
+      cell.scope = 'col';
+      header.append(cell);
+    }
+    const body = table.createTBody();
+    region.append(table);
+    return {region, show(rows) {
+      body.replaceChildren();
+      for (const row of rows) {
+        const tr = body.insertRow();
+        tr.dataset.allocation = row.id;
+        for (const value of [row.rank, row.total, row.targets.join(' + '), row.paths?.toLocaleString() ?? '—'])
+          tr.insertCell().textContent = value;
+        if (row.note) tr.cells[2].append(node('small', row.note));
+        accountSummary(tr.insertCell(), phase, row.is, {paths:row.paths, mode});
+        accountSummary(tr.insertCell(), phase, row.oos, {paths:row.paths, mode, missing:row.oosStatus});
+        tr.insertCell().append(row.action);
+      }
+    }};
+  }
+
+  function sizeValue(sample, funded, mode) {
+    if (!funded) return sample.probabilities?.passed ?? -Infinity;
+    return (mode === 'account_life' ? sample.mean_trader_receipts
+      : sample.first_year_mean_receipts ?? sample.mean_trader_receipts) ?? -Infinity;
+  }
+
   function setup(get, optimizing, invalidate) {
     const portfolio = [];
     let candidates;
@@ -44,11 +107,12 @@
       message.textContent = '';
       const badges = get('members').querySelectorAll('[data-target]');
       const shares = get('members').querySelectorAll('[data-share]');
-      badges.forEach(badge => { badge.hidden = optimizing(); });
-      shares.forEach(share => { share.hidden = optimizing(); });
+      const showWeightedTargets = !optimizing() && !(members.length > 1 && get('simulation-allocation').value === 'individual');
+      badges.forEach(badge => { badge.hidden = !showWeightedTargets; });
+      shares.forEach(share => { share.hidden = !showWeightedTargets; });
       badges.forEach(badge => { badge.textContent = '— MNQ'; });
       shares.forEach(share => { share.textContent = '—'; });
-      if (!optimizing() && sum > 0 && valid && size >= 1) {
+      if (showWeightedTargets && sum > 0 && valid && size >= 1) {
         const targets = weights.map(weight => Math.floor(size * weight / sum));
         const unused = size - targets.reduce((acc, target) => acc + target, 0);
         badges.forEach((badge, index) => { badge.textContent = targets[index] + ' MNQ'; });
@@ -243,6 +307,50 @@
     const center = node('div', undefined, 'prop-desk-stack prop-desk-portfolio');
     const account = node('aside', undefined, 'prop-desk-stack prop-desk-account');
     layout.append(library, center, account);
+    const inspection = node('section', undefined, 'panel prop-desk-panel prop-desk-size-checks');
+    inspection.tabIndex = -1;
+    let refreshSelection;
+    if (sizes.length > 1) {
+      const section = node('section', undefined, 'panel prop-desk-panel prop-desk-size-results');
+      const mode = basket.reporting_preset || basket.size_rule || report.configuration.funded_size_rule;
+      const ranked = sizeRanking(phase, mode);
+      const seen = new Map();
+      const eligible = row => row.allocation.micros.every(value => value > 0) &&
+        (basket.size_rule !== 'conservative' || row.metrics.probabilities.breached <= .20);
+      const ordered = [...sizes].sort((a, b) => Number(eligible(b)) - Number(eligible(a)) ||
+        sizeValue(b.metrics, funded, mode) - sizeValue(a.metrics, funded, mode) || a.micros - b.micros);
+      let position = 0;
+      const controls = new Map();
+      const entries = ordered.map(row => {
+        const key = row.allocation.micros.join(',');
+        const equivalent = seen.get(key);
+        const rank = eligible(row) ? equivalent?.rank ?? ++position : '—';
+        if (!equivalent) seen.set(key, {rank, total:row.micros});
+        const action = button(`Inspect ${row.micros} MNQ`, () => {
+          select.value = row.micros;
+          selectedSize();
+          inspection.focus({preventScroll:true});
+          inspection.scrollIntoView({block:'start'});
+        });
+        controls.set(row.micros, action);
+        return {id:row.micros, rank, total:row.micros, targets:row.allocation.micros,
+          note:!row.allocation.micros.some(Boolean) ? 'No active contracts'
+            : !row.allocation.micros.every(Boolean) ? 'A member has zero contracts'
+            : !eligible(row) ? 'Above 20% IS breach cap'
+            : equivalent ? `Same targets as ${equivalent.total} MNQ` : undefined,
+          paths:row.account_comparison?.is_metrics?.path_count ?? report.simulation.simulations,
+          is:row.account_comparison?.is_metrics ?? row.metrics, oos:row.account_comparison?.oos_metrics,
+          oosStatus:row.account_comparison?.unavailable ?? 'No saved OOS account assessment', action};
+      });
+      section.append(node('h2', 'Sizing ranking'), node('p', funded
+        ? `Ranked by IS mean trader receipts · ${mode === 'account_life' ? 'Account life' : 'First year'}`
+        : 'Ranked by IS pass probability. Equal scores favor fewer contracts.', 'field-help'), ranked.region);
+      ranked.show(entries);
+      refreshSelection = size => {
+        for (const [value, control] of controls) control.setAttribute('aria-pressed', String(value === size));
+      };
+      parent.append(section);
+    }
     parent.append(layout);
 
     library.append(node('h2', 'Strategies'));
@@ -266,7 +374,7 @@
     const chart = node('section', undefined, 'panel prop-desk-panel prop-desk-chart-section prop-desk-equity-card');
     const timeline = node('section', undefined, 'panel prop-desk-panel prop-desk-timeline');
     timeline.hidden = !funded;
-    center.append(portfolio, chart, timeline);
+    center.append(portfolio, inspection, chart, timeline);
     const detail = node('section', undefined, 'panel prop-desk-panel prop-desk-account-result');
     const sweep = node('section', undefined, 'panel prop-desk-panel prop-desk-chart-section prop-desk-size-card');
     const ruleCard = node('section', undefined, 'panel prop-desk-panel prop-desk-rule-card');
@@ -340,6 +448,7 @@
       url.set('size', String(size));
       window.history.replaceState(null, '', '#prop-desk?' + url.toString());
       onSizeChange?.(size);
+      refreshSelection?.(size);
       portfolio.replaceChildren(node('h2', 'Portfolio'));
       const weightTotal = report.configuration.members.reduce((total, member) => total + member.weight, 0);
       for (const [i, member] of basket.members.entries()) {
@@ -364,6 +473,21 @@
       detail.replaceChildren(node('h2', funded ? 'Funded account' : 'Evaluation account'));
       timeline.replaceChildren();
       const pair = row.account_comparison;
+      const split = node('div', undefined, 'prop-desk-size-check-samples');
+      const is = node('div');
+      const oos = node('div');
+      const samplePaths = pair?.is_metrics?.path_count ?? report.simulation.simulations;
+      is.append(node('h3', 'IS'), node('p', interval(coverage.is), 'field-help'));
+      const oosDates = pair?.oos_days || coverage.oos;
+      oos.append(node('h3', 'OOS'));
+      if (pair?.oos_metrics && oosDates?.length) oos.append(node('p', interval(oosDates), 'field-help'));
+      accountSummary(is, phase, pair?.is_metrics ?? row.metrics, {paths:samplePaths, mode:basket.reporting_preset});
+      accountSummary(oos, phase, pair?.oos_metrics, {paths:samplePaths, mode:basket.reporting_preset,
+        missing:pair?.unavailable ?? 'No saved OOS account assessment'});
+      split.append(is, oos);
+      inspection.replaceChildren(node('h2', `Inspect ${size} MNQ`), node('p',
+        `${row.allocation.micros.join(' + ')} MNQ by member · ${row.allocation.unused} unused · ` +
+        `${samplePaths.toLocaleString()} account paths · ${pair?.is_metrics?.reporting_sessions ?? report.configuration.observation_sessions} trading days`, 'field-help'), split);
       const accountMetrics = pair?.oos_metrics || pair?.is_metrics || row.metrics;
       if (pair) {
         const accountLabel = pair.oos_metrics ? 'Out of sample' : 'In sample';
@@ -421,6 +545,12 @@
           ['Sharpe', result.metrics.sharpe == null ? '—' : result.metrics.sharpe.toFixed(2)],
           ['Max drawdown', value(result.metrics.maximum_drawdown)],
         ]);
+        const boundary = result.dates.indexOf(result.oos_start);
+        const isNet = boundary < 0 ? result.final_equity_change : boundary ? result.levels[boundary - 1][0] : 0;
+        inspection.append(node('p', `Historical net P&L · IS ${usd(isNet)}` +
+          (boundary < 0 ? '' : ` · OOS ${usd(result.final_equity_change - isNet)}`) +
+          ` · Total ${usd(result.final_equity_change)}`, 'field-help'),
+          download('Admitted trade ledger ↓', files + result.trades_file));
         plot(chart, result.dates, series, {format:value => '$' + Math.round(value).toLocaleString(),
           marker:result.dates.indexOf(result.oos_start), title:'Portfolio and members historical closed-trade equity', startAtZero:true});
         const methods = node('details');
@@ -599,6 +729,6 @@
     else open(optimizer.combinations[first.combination - 1], first.micros);
   }
 
-  window.propDeskBasket = {setup, render, renderOptimizer, plot, strategyIdentity,
+  window.propDeskBasket = {setup, render, renderOptimizer, plot, strategyIdentity, sizeRanking, sizeValue,
     interval:dates => `${dates[0]} to ${dates.at(-1)} · ${dates.length} observed sessions`};
 })();

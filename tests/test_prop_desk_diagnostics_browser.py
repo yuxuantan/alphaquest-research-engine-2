@@ -83,6 +83,7 @@ def test_strategy_diagnostics_product(page, portal, tmp_path, monkeypatch, desk_
             picker.select_option(source)
             desk.get_by_role('button', name='Add to portfolio').click()
         desk.get_by_label('Minimum total MNQ').fill('2')
+        desk.get_by_label('Allocation sizing').select_option('weighted')
         desk.get_by_label('Maximum total MNQ').fill('4')
         with page.expect_response('**/api/prop-desk/basket') as launch:
             desk.get_by_role('button', name='Run simulation').click()

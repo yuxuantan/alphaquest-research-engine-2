@@ -1,0 +1,1041 @@
+{
+  "evaluation": {
+    "phase": "evaluation",
+    "existing_allocation_search": "individual",
+    "normal_report_id": "f9b60bdb877c4e4fafee31a9d5e868c6",
+    "ranking_sha256": "c9f67b8501bbf89484ec418f57c5539e50ca707a4feadbddd57afcda59030510",
+    "source_ids": [
+      "e593085d424e4d68aa88f1ecb04d04e5",
+      "f5fb02ad3138401b833fd40b99b1574f",
+      "759bf9dc2d714dafbe1d7f5985d99482",
+      "1443ec1be841473c9564b409f94e20b8"
+    ],
+    "profile": "apex-50k-eod",
+    "bounds": [
+      4,
+      6
+    ],
+    "is_days": 1034,
+    "first_session": "2021-01-04",
+    "last_session": "2024-12-31",
+    "horizon": 21,
+    "paths_per_full_row": 1000,
+    "workload": {
+      "account_paths_computed": 77768,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 0,
+      "score_calls": 268,
+      "tested": 175,
+      "workers": 1
+    },
+    "full_scored": 41,
+    "production_winner": {
+      "subset": 3,
+      "members": [
+        2
+      ],
+      "allocation": [
+        6
+      ],
+      "probability": 0.288,
+      "receipts": 0.0,
+      "median_day": 12.0
+    },
+    "exhaustive_under_current_policy": {
+      "subset": 3,
+      "members": [
+        2
+      ],
+      "allocation": [
+        6
+      ],
+      "probability": 0.288,
+      "receipts": 0.0,
+      "median_day": 12.0
+    },
+    "max_probability_over_entire_grid": {
+      "subset": 3,
+      "members": [
+        2
+      ],
+      "allocation": [
+        6
+      ],
+      "probability": 0.288,
+      "receipts": 0.0,
+      "median_day": 12.0
+    },
+    "max_receipts_over_entire_grid": null,
+    "same_subset_allocations": 15,
+    "production_ranking": [
+      {
+        "subset": 3,
+        "members": [
+          2
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.288,
+        "receipts": 0.0,
+        "median_day": 12.0
+      },
+      {
+        "subset": 8,
+        "members": [
+          1,
+          2
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.281,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 10,
+        "members": [
+          2,
+          3
+        ],
+        "allocation": [
+          5,
+          1
+        ],
+        "probability": 0.275,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 6,
+        "members": [
+          0,
+          2
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.269,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 14,
+        "members": [
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.256,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 11,
+        "members": [
+          0,
+          1,
+          2
+        ],
+        "allocation": [
+          1,
+          1,
+          4
+        ],
+        "probability": 0.248,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 13,
+        "members": [
+          0,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.244,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 15,
+        "members": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          1,
+          3,
+          1
+        ],
+        "probability": 0.149,
+        "receipts": 0.0,
+        "median_day": 17
+      },
+      {
+        "subset": 5,
+        "members": [
+          0,
+          1
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.132,
+        "receipts": 0.0,
+        "median_day": 17.0
+      },
+      {
+        "subset": 2,
+        "members": [
+          1
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.131,
+        "receipts": 0.0,
+        "median_day": 17
+      },
+      {
+        "subset": 9,
+        "members": [
+          1,
+          3
+        ],
+        "allocation": [
+          5,
+          1
+        ],
+        "probability": 0.114,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 12,
+        "members": [
+          0,
+          1,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.11,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 7,
+        "members": [
+          0,
+          3
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.075,
+        "receipts": 0.0,
+        "median_day": 16
+      },
+      {
+        "subset": 4,
+        "members": [
+          3
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.058,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 1,
+        "members": [
+          0
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.053,
+        "receipts": 0.0,
+        "median_day": 16
+      }
+    ],
+    "exhaustive_ranking": [
+      {
+        "subset": 3,
+        "members": [
+          2
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.288,
+        "receipts": 0.0,
+        "median_day": 12.0
+      },
+      {
+        "subset": 8,
+        "members": [
+          1,
+          2
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.281,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 10,
+        "members": [
+          2,
+          3
+        ],
+        "allocation": [
+          5,
+          1
+        ],
+        "probability": 0.275,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 6,
+        "members": [
+          0,
+          2
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.269,
+        "receipts": 0.0,
+        "median_day": 13
+      },
+      {
+        "subset": 14,
+        "members": [
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.256,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 11,
+        "members": [
+          0,
+          1,
+          2
+        ],
+        "allocation": [
+          1,
+          1,
+          4
+        ],
+        "probability": 0.248,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 13,
+        "members": [
+          0,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.244,
+        "receipts": 0.0,
+        "median_day": 15.0
+      },
+      {
+        "subset": 15,
+        "members": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          1,
+          3,
+          1
+        ],
+        "probability": 0.149,
+        "receipts": 0.0,
+        "median_day": 17
+      },
+      {
+        "subset": 5,
+        "members": [
+          0,
+          1
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.132,
+        "receipts": 0.0,
+        "median_day": 17.0
+      },
+      {
+        "subset": 2,
+        "members": [
+          1
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.131,
+        "receipts": 0.0,
+        "median_day": 17
+      },
+      {
+        "subset": 9,
+        "members": [
+          1,
+          3
+        ],
+        "allocation": [
+          5,
+          1
+        ],
+        "probability": 0.114,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 12,
+        "members": [
+          0,
+          1,
+          3
+        ],
+        "allocation": [
+          1,
+          4,
+          1
+        ],
+        "probability": 0.11,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 7,
+        "members": [
+          0,
+          3
+        ],
+        "allocation": [
+          1,
+          5
+        ],
+        "probability": 0.075,
+        "receipts": 0.0,
+        "median_day": 16
+      },
+      {
+        "subset": 4,
+        "members": [
+          3
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.058,
+        "receipts": 0.0,
+        "median_day": 16.0
+      },
+      {
+        "subset": 1,
+        "members": [
+          0
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.053,
+        "receipts": 0.0,
+        "median_day": 16
+      }
+    ],
+    "elapsed_seconds": 12.05
+  },
+  "funded": {
+    "phase": "funded",
+    "existing_allocation_search": "individual",
+    "normal_report_id": "96e96e3c1087463380d531873b1c3e9b",
+    "ranking_sha256": "d4a662d5fcff4790550f67b537ee5f35fc549fc07310f42f1c3b9c282c1e6c05",
+    "source_ids": [
+      "e593085d424e4d68aa88f1ecb04d04e5",
+      "f5fb02ad3138401b833fd40b99b1574f",
+      "759bf9dc2d714dafbe1d7f5985d99482",
+      "1443ec1be841473c9564b409f94e20b8"
+    ],
+    "profile": "apex-50k-eod",
+    "bounds": [
+      4,
+      6
+    ],
+    "is_days": 1034,
+    "first_session": "2021-01-04",
+    "last_session": "2024-12-31",
+    "horizon": 261,
+    "paths_per_full_row": 1000,
+    "workload": {
+      "account_paths_computed": 103416,
+      "exhaustive": false,
+      "feasible": 175,
+      "score_cache_hits": 0,
+      "score_calls": 338,
+      "tested": 175,
+      "workers": 4
+    },
+    "full_scored": 39,
+    "production_winner": {
+      "subset": 15,
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        1,
+        1,
+        3
+      ],
+      "probability": 0.525,
+      "receipts": 3057.5,
+      "median_day": 54
+    },
+    "exhaustive_under_current_policy": {
+      "subset": 15,
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        1,
+        1,
+        3
+      ],
+      "probability": 0.525,
+      "receipts": 3057.5,
+      "median_day": 54
+    },
+    "max_probability_over_entire_grid": {
+      "subset": 14,
+      "members": [
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        1,
+        2
+      ],
+      "probability": 0.563,
+      "receipts": 2467.5,
+      "median_day": 89
+    },
+    "max_receipts_over_entire_grid": {
+      "subset": 15,
+      "members": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "allocation": [
+        1,
+        1,
+        1,
+        3
+      ],
+      "probability": 0.525,
+      "receipts": 3057.5,
+      "median_day": 54
+    },
+    "same_subset_allocations": 12,
+    "production_ranking": [
+      {
+        "subset": 15,
+        "members": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          1,
+          1,
+          3
+        ],
+        "probability": 0.525,
+        "receipts": 3057.5,
+        "median_day": 54
+      },
+      {
+        "subset": 14,
+        "members": [
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          2,
+          2
+        ],
+        "probability": 0.504,
+        "receipts": 3056.5,
+        "median_day": 51.0
+      },
+      {
+        "subset": 13,
+        "members": [
+          0,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          2,
+          2
+        ],
+        "probability": 0.496,
+        "receipts": 3018.0,
+        "median_day": 52.0
+      },
+      {
+        "subset": 10,
+        "members": [
+          2,
+          3
+        ],
+        "allocation": [
+          2,
+          3
+        ],
+        "probability": 0.489,
+        "receipts": 2965.0,
+        "median_day": 51
+      },
+      {
+        "subset": 6,
+        "members": [
+          0,
+          2
+        ],
+        "allocation": [
+          3,
+          2
+        ],
+        "probability": 0.471,
+        "receipts": 2665.0,
+        "median_day": 52
+      },
+      {
+        "subset": 9,
+        "members": [
+          1,
+          3
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.47,
+        "receipts": 2539.0,
+        "median_day": 49.0
+      },
+      {
+        "subset": 12,
+        "members": [
+          0,
+          1,
+          3
+        ],
+        "allocation": [
+          1,
+          3,
+          2
+        ],
+        "probability": 0.467,
+        "receipts": 2493.0,
+        "median_day": 48
+      },
+      {
+        "subset": 8,
+        "members": [
+          1,
+          2
+        ],
+        "allocation": [
+          2,
+          2
+        ],
+        "probability": 0.451,
+        "receipts": 2435.5,
+        "median_day": 55
+      },
+      {
+        "subset": 11,
+        "members": [
+          0,
+          1,
+          2
+        ],
+        "allocation": [
+          2,
+          2,
+          2
+        ],
+        "probability": 0.443,
+        "receipts": 2657.0,
+        "median_day": 41
+      },
+      {
+        "subset": 7,
+        "members": [
+          0,
+          3
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.439,
+        "receipts": 1956.5,
+        "median_day": 51
+      },
+      {
+        "subset": 5,
+        "members": [
+          0,
+          1
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.435,
+        "receipts": 2316.5,
+        "median_day": 42
+      },
+      {
+        "subset": 3,
+        "members": [
+          2
+        ],
+        "allocation": [
+          4
+        ],
+        "probability": 0.4,
+        "receipts": 2277.5,
+        "median_day": 29.0
+      },
+      {
+        "subset": 2,
+        "members": [
+          1
+        ],
+        "allocation": [
+          4
+        ],
+        "probability": 0.382,
+        "receipts": 1807.5,
+        "median_day": 59.0
+      },
+      {
+        "subset": 4,
+        "members": [
+          3
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.322,
+        "receipts": 1287.5,
+        "median_day": 44.0
+      },
+      {
+        "subset": 1,
+        "members": [
+          0
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.277,
+        "receipts": 963.5,
+        "median_day": 49
+      }
+    ],
+    "exhaustive_ranking": [
+      {
+        "subset": 15,
+        "members": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          1,
+          1,
+          3
+        ],
+        "probability": 0.525,
+        "receipts": 3057.5,
+        "median_day": 54
+      },
+      {
+        "subset": 14,
+        "members": [
+          1,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          2,
+          2
+        ],
+        "probability": 0.504,
+        "receipts": 3056.5,
+        "median_day": 51.0
+      },
+      {
+        "subset": 10,
+        "members": [
+          2,
+          3
+        ],
+        "allocation": [
+          2,
+          3
+        ],
+        "probability": 0.489,
+        "receipts": 2965.0,
+        "median_day": 51
+      },
+      {
+        "subset": 13,
+        "members": [
+          0,
+          2,
+          3
+        ],
+        "allocation": [
+          1,
+          2,
+          3
+        ],
+        "probability": 0.477,
+        "receipts": 3032.5,
+        "median_day": 43
+      },
+      {
+        "subset": 6,
+        "members": [
+          0,
+          2
+        ],
+        "allocation": [
+          3,
+          2
+        ],
+        "probability": 0.471,
+        "receipts": 2665.0,
+        "median_day": 52
+      },
+      {
+        "subset": 11,
+        "members": [
+          0,
+          1,
+          2
+        ],
+        "allocation": [
+          2,
+          1,
+          2
+        ],
+        "probability": 0.47,
+        "receipts": 2715.0,
+        "median_day": 51.0
+      },
+      {
+        "subset": 9,
+        "members": [
+          1,
+          3
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.47,
+        "receipts": 2539.0,
+        "median_day": 49.0
+      },
+      {
+        "subset": 12,
+        "members": [
+          0,
+          1,
+          3
+        ],
+        "allocation": [
+          1,
+          3,
+          2
+        ],
+        "probability": 0.467,
+        "receipts": 2493.0,
+        "median_day": 48
+      },
+      {
+        "subset": 7,
+        "members": [
+          0,
+          3
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.439,
+        "receipts": 1956.5,
+        "median_day": 51
+      },
+      {
+        "subset": 5,
+        "members": [
+          0,
+          1
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.435,
+        "receipts": 2316.5,
+        "median_day": 42
+      },
+      {
+        "subset": 8,
+        "members": [
+          1,
+          2
+        ],
+        "allocation": [
+          2,
+          4
+        ],
+        "probability": 0.43,
+        "receipts": 2632.0,
+        "median_day": 25.0
+      },
+      {
+        "subset": 3,
+        "members": [
+          2
+        ],
+        "allocation": [
+          4
+        ],
+        "probability": 0.4,
+        "receipts": 2277.5,
+        "median_day": 29.0
+      },
+      {
+        "subset": 2,
+        "members": [
+          1
+        ],
+        "allocation": [
+          4
+        ],
+        "probability": 0.382,
+        "receipts": 1807.5,
+        "median_day": 59.0
+      },
+      {
+        "subset": 4,
+        "members": [
+          3
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.322,
+        "receipts": 1287.5,
+        "median_day": 44.0
+      },
+      {
+        "subset": 1,
+        "members": [
+          0
+        ],
+        "allocation": [
+          6
+        ],
+        "probability": 0.277,
+        "receipts": 963.5,
+        "median_day": 49
+      }
+    ],
+    "elapsed_seconds": 70.39
+  }
+}

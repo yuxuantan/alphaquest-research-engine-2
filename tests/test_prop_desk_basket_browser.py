@@ -39,6 +39,7 @@ def test_basket_product_equity_sizing_and_reopen(page, portal, tmp_path, desk_ca
     desk.get_by_role('button', name='Add Consecutive green hold ' + first[:8]).click()
     picker.select_option(members[1]['source_backtest_id'])
     desk.get_by_role('button', name='Add to portfolio', exact=True).click()
+    desk.get_by_label('Allocation sizing').select_option('weighted')
     playwright.expect(desk.get_by_role('heading', name='Portfolio', exact=True)).to_be_visible()
     desk.get_by_role('button', name='Equal weight').click()
     desk.get_by_label('Weight for member 1').fill('2')

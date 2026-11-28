@@ -1,0 +1,28 @@
+{
+  "simulation_id": "422e620d70be4941ab382ee228f56f32",
+  "selected_requested_mnq": 10,
+  "targets": [
+    5,
+    5
+  ],
+  "account_outcome_counts": {
+    "is": {
+      "passed": 378,
+      "breached": 581,
+      "observation_cutoff": 41
+    },
+    "oos": {
+      "breached": 717,
+      "passed": 247,
+      "observation_cutoff": 36
+    }
+  },
+  "historical_net_usd": {
+    "is": "68660.110",
+    "oos": "43755.980"
+  },
+  "optimise_id": "6bcfd87280e44eacb533fd89bd485b48",
+  "optimise_candidate": "8-1-5",
+  "optimise_oos_pass_count": 262,
+  "optimise_evidence_id": "6ba620b2272a420cad745f729c53caf8"
+}

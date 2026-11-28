@@ -1,0 +1,24 @@
+{
+  "previous_weighted": "556989a329634d369787631bee5c2be2",
+  "wide_run": "0c9f06ee3d8b4bcdab18d31e71c965d5",
+  "wide_feasible": 780,
+  "wide_tested": 9,
+  "narrow_run": "25f2c8b804524f3380e0d324681285e8",
+  "narrow_exhaustive": 15,
+  "counts_1_5": {
+    "breached": 594,
+    "observation_cutoff": 0,
+    "passed": 406
+  },
+  "counts_5_1": {
+    "breached": 488,
+    "observation_cutoff": 60,
+    "passed": 452
+  },
+  "inspected_1_5": "1356cd4e89ae4cf38542b573f70ac1aa",
+  "oos_1_5": {
+    "breached": 664,
+    "observation_cutoff": 1,
+    "passed": 335
+  }
+}

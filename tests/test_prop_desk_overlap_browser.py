@@ -42,6 +42,8 @@ def test_sequential_overlap_screen_and_reopen(page, portal, tmp_path, monkeypatc
             desk.get_by_label('Minimum total MNQ').fill('4')
             desk.get_by_label('Maximum total MNQ').fill('4')
             optimise = phase == 'funded'
+            if not optimise:
+                desk.get_by_label('Allocation sizing').select_option('weighted')
             endpoint = '/optimizer/subsets' if optimise else '/basket'
             with page.expect_response('**/api/prop-desk' + endpoint) as launched:
                 desk.get_by_role('button', name='Run Optimise' if optimise else 'Run simulation', exact=True).click()

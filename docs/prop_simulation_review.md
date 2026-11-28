@@ -16035,3 +16035,223 @@ ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
   tests/test_prop_desk_browser.py::test_fixed_prop_desk_product_journey \
   tests/test_prop_desk_optimizer_browser.py::test_combination_optimizer_product_journey
 ```
+
+### Prop Desk allocation and ranking audit (2026-11-27)
+
+The Individual MNQ search uses a separate positive whole-contract count for
+each included strategy. For a direct UI check, select two strategies, require
+both, enter 3–4 total MNQ, and run **Individual MNQ**. The saved ranking should
+say **5 of 5 feasible allocations tested · Exhaustive** and list `1+2`, `2+1`,
+`1+3`, `2+2`, and `3+1`, each with 1,000 paths. The two orientations at the
+same total are separate candidates. [Saved synthetic ranking](evidence/prop-desk-recommendations/evaluation-ranking.json)
+
+The real-source audit ran the normal recommendation API in a scratch catalogue
+copy at `ff1a615`. It used Apex 50K EOD, sequential MAE, four qualified saved
+configurations in the order `e593085d`, `f5fb02ad`, `759bf9dc`, `1443ec1b`, and
+1,034 common IS sessions from 2021-01-04 to 2024-12-31. With a 4–6 total MNQ
+range and one member minimum, the independent allocation enumerator identified
+175 feasible vectors. It scored every vector on the same 1,000 paths using the
+same saved trades, costs, rules and horizons. The audit separately aggregated
+pass and payout outcomes from the paths and reconstructed each saved subset
+selection among its full-path finalists, then the final ranking. All saved
+selections and ranking positions matched those rules.
+
+| Phase | Normal search | Exhaustive comparison |
+| --- | --- | --- |
+| Evaluation | 105 of 175 vectors screened, 36 with 1,000 paths | Same overall winner at 6 MNQ and 28.8% pass. All 11 multi-strategy subsets improved. The highest-ranked multi-strategy subset moved from `2+4` at 26.1% pass and 15 median days to `1+5` at 28.1% and 13 days. |
+| Funded First year | 105 of 175 vectors screened, 37 with 1,000 paths | Six subset allocations changed. The first-ranked four-strategy basket moved from `1+2+1+2` at $2,896.00 mean receipts and 49.7% payout probability to `1+1+1+3` at $3,057.50 and 52.5%. |
+
+The exhaustive Funded grid also contained `1+1+2` on the second, third and
+fourth pool members with 56.3% payout probability and $2,467.50 mean
+first-year receipts. That is the highest payout probability over the full
+grid. The account-size rule chose a different allocation within that subset
+because it maximizes receipts before subset ranking. These results verify
+the current search and ranking contract on matched IS inputs. Account paths
+still use AlphaQuest's local model. The comparison does not establish Bridge
+calculation parity or future performance.
+
+Run the audit from the repository root using a scratch clone of the same
+catalogue. The script checks qualification through the product API and writes
+`comparison.json` beside the script with the normal report IDs, the matched
+dates and horizons, and both subset rankings.
+
+```sh
+aq_sizing_audit=$(mktemp -d /tmp/aq-prop-sizing-audit.XXXXXX)
+cp -cR data "$aq_sizing_audit/data"
+cp docs/evidence/prop-desk-sizing-audit/validate.py "$aq_sizing_audit/validate.py"
+PYTHONPATH=. .venv/bin/python "$aq_sizing_audit/validate.py"
+```
+
+[Matched exhaustive comparison](evidence/prop-desk-sizing-audit/comparison.json) ·
+[Reproduction script](evidence/prop-desk-sizing-audit/validate.py)
+
+#### Inspect allocations the optimiser did not choose (2026-11-28)
+
+In a saved recommendation, expand **Tested allocations**, choose a contract
+mix, and click **Inspect tested allocation**. This opens the allocation at the
+same path count retained by the parent. **Saved ranking JSON** contains every
+evaluated candidate under `recommendation.groups[].candidates`, including the
+targets, path count and IS metrics. The ranking table itself displays one
+allocation per subset.
+
+The [full allocation CSV](evidence/prop-desk-sizing-audit/all-allocations.csv)
+contains all 175 allocations for each of the two audit phases. `normal_status`
+shows whether the sealed run used 1,000 paths (`full_paths`), 96 (`screen_only`),
+or skipped the allocation (`untested`). The `exhaustive_` columns use the same
+1,000 paths for every row. Probability fields are fractions. In Evaluation,
+success is passing one attempt. In Funded First year, it is receiving at least
+one payout. The reproduction command above now also writes `all-allocations.csv`.
+
+#### All-allocation screening and paired refinement (2026-11-28)
+
+New Individual MNQ reports use `prop-desk-recommendation-v2`. Up to 24
+feasible allocations are scored directly on all 1,000 paths. From 25 to 256,
+every feasible allocation is screened on the same 96 paths, with subsets of
+one or two feasible allocations scored directly on all paths. Above 256,
+the preview identifies the existing bounded local search.
+
+For each screened subset, the top two allocations and those within two
+paired standard errors of the leader advance to 384 paths. The difference
+uses pass indicators for Evaluation and trader receipts for Funded, on the
+same account path for each allocation. Exact screening ties advance. The
+best screened weighted baseline also advances. The top two after refinement
+and the strongest weighted baseline from refinement receive all 1,000 paths.
+The 96 and 384 paths are prefixes of those 1,000. The paired screen prioritizes
+compute and does not certify a confidence bound or exhaustive optimality. The
+saved `path_stages` list shows each allocation's observed stages. Only
+1,000-path results can win a subset. Sizing and ranking still use IS. OOS
+applies the frozen counts. The weighted search modes retain their sizing
+rules. Older reports and their already sealed evidence remain readable.
+
+#### Reproduce and compare
+
+1. In **Prop Desk → Optimise**, add `e593085d`, `f5fb02ad`, `759bf9dc`, and
+   `1443ec1b` in that order. Select **Apex 50K EOD**, **Individual MNQ**,
+   **Keep overlaps · sequential MAE**, one strategy minimum, and 4–6 total
+   MNQ. The preview should say **175 feasible allocations · all allocations
+   screened**.
+2. Run Evaluation. Expect **175 of 175 feasible allocations tested**. Open
+   **Tested allocations** and choose `1+5` for `f5fb02ad` and `759bf9dc`.
+   This mix should show 1,000 paths and 28.1% IS pass probability. Its stages
+   are 96, 384 and 1,000, and the saved ranking lists it as subset 8's winner.
+3. In Funded First year, expect the leading basket at `1+1+1+3`, with
+   $3,057.50 in mean receipts and 52.5% probability of any payout. Use the
+   scratch-catalogue command above to compare every candidate on the same
+   1,000 paths. The previous and new audit used the same 1,034 IS sessions.
+
+| Phase | Previous subset winners matching exhaustive | New subset winners matching exhaustive | Previous / new IS scoring time |
+| --- | ---: | ---: | ---: |
+| Evaluation | 4 of 15 | 15 of 15 | 2.24 / 3.56 s |
+| Funded First year | 9 of 15 | 12 of 15 | 8.71 / 22.42 s |
+
+The leading Funded basket now matches the exhaustive choice. Three Funded
+subset winners still differ. These are cold allocation-score timings from
+comparable saved runs and include the intermediate scoring. The live desktop
+and mobile workflow reopened the 175-allocation Evaluation report and exposed
+the newly covered `1+5` allocation. Seven focused backend checks and two
+product checks passed. Temporary test portals shut down at teardown. The
+regular portal serving `http://localhost:8000/` was refreshed after verifying
+that no jobs were active. The stable launcher records its PID in
+`data/.portal-server.lock` for a graceful TERM when idle.
+
+[Previous and updated results](evidence/prop-desk-full-screen/verification.json) ·
+[All allocation scores](evidence/prop-desk-full-screen/all-allocations.csv) ·
+[Desktop preview](evidence/prop-desk-full-screen/full-screen-preview.png) ·
+[Mobile saved report](evidence/prop-desk-full-screen/full-screen-mobile.png) ·
+[Live report IDs and evidence](evidence/prop-desk-full-screen/live-full-screen.json)
+
+#### Ranked sizes and inspection (2026-11-28)
+
+The **Sizing ranking** table pairs IS and OOS account metrics for the same
+saved allocation. Evaluation shows pass, breach, expiry or cutoff and median
+pass day. Funded shows mean trader receipts for the preset, any payout, breach
+before payout, median first payout day and accounts open at cutoff. Rank uses
+IS only. Simulation rows with the same targets share a rank and show the
+original requested total. Rows with zero targets or above the Conservative
+breach cap remain inspectable with an explanation and without a rank.
+
+**Inspect** opens the chosen allocation. It shows whole-MNQ targets, unused
+contracts, number of paths, reporting horizon, source dates, account outcomes
+with path counts where available, and the historical net P&L split at the OOS
+boundary. The admitted trade ledger, simulated outcomes, equity and exact
+account rules remain available with the saved result.
+
+Optimise shows the sizing table for the selected strategy combination. The
+table ranks full-path allocations and labels partial evidence as **Screen**.
+The OOS column displays evidence from the sealed child for that candidate.
+Opening a candidate assesses OOS when compatible evidence is available. On
+return, the original combination and its OOS cells are restored. This uses
+the existing same-allocation assessment and creates no new work when reading
+the ranking. Missing linked sources and missing common coverage are labelled.
+The implementation follows the saved Bridge comparison from the adjacent IS
+and OOS ranking columns and row-level inspection workflow. See the
+[Bridge v2.9.16 capture](evidence/prop-desk-post-m6-parity/bridge-optimise.png).
+
+1. On desktop open
+   `http://localhost:8000/#prop-desk?analysis=422e620d70be4941ab382ee228f56f32`.
+   The first ranked size is 10 MNQ. The 11 MNQ request has the same `5+5`
+   targets. The 1 MNQ request shows **No active contracts**. Click
+   **Inspect 10 MNQ** and reload to verify that the size remains selected.
+2. Compare the 10 MNQ outcomes with the saved path downloads. The independent
+   path count was IS `378 pass + 581 breach + 41 cutoff = 1,000` and OOS
+   `247 pass + 717 breach + 36 cutoff = 1,000`. The admitted-trade ledger
+   independently summed to IS **$68,660.11** and OOS **$43,755.98** net, as
+   displayed in the inspection panel.
+3. At mobile width open
+   `http://localhost:8000/#prop-desk?analysis=6bcfd87280e44eacb533fd89bd485b48&sizing=8`.
+   The `1+5` allocation on that pair shows **28.1% IS** and **26.2% OOS** pass.
+   Tap **Inspect 1 + 5 MNQ** to open the sealed allocation evidence. Tap
+   **Saved recommendation** to return to the same combination. The table
+   scrolls horizontally on mobile.
+
+The focused Simulation and Optimise browser journeys passed. The synthetic
+Funded check verified $13,000 mean receipts and 1,000 paths in the saved paired
+evidence. The live portal was refreshed after checking for active jobs. Its
+PID is recorded in `data/.portal-server.lock` for graceful TERM when idle.
+
+[Desktop ranking](evidence/prop-desk-sizing-ranking/evaluation-desktop.png) ·
+[Inspected size](evidence/prop-desk-sizing-ranking/inspected-size.png) ·
+[Mobile Optimise ranking](evidence/prop-desk-sizing-ranking/optimise-mobile.png) ·
+[Synthetic mobile Funded](evidence/prop-desk-sizing-ranking/funded-synthetic-mobile.png) ·
+[Live verification](evidence/prop-desk-sizing-ranking/live-verification.json)
+
+#### Individual contract sizing in Simulation (2026-11-28)
+
+Multi-strategy Simulation defaults to **Individual MNQ**. It sends the
+selected basket to the shared Optimise engine as exactly one combination.
+Every selected member receives at least 1 MNQ. The weight field still
+defines tie priority when entries compete and supplies a comparison baseline.
+It does not constrain the individual grid. Evaluation sizes by IS pass
+probability. Funded uses the selected IS First year or Account life preset.
+**By weight** retains the original allocation and all weighted presets,
+including Conservative. The existing exact, full-screen and bounded local
+workload limits apply to the individual mode. Saved reports retain their
+original sizing and can be reopened.
+
+1. Open `http://localhost:8000/#prop-desk?analysis=556989a329634d369787631bee5c2be2&size=2`.
+   The weighted result uses VWAP `1443ec1b` and Twin `364df135` with weights
+   1 and 1. At 3 requested MNQ it assigns `1+1` with one unused. Click
+   **Search individual MNQ** to reuse the portfolio, account, 90-session
+   horizon, saved sources, overlap setting and original 2–40 MNQ range.
+   The new report `0c9f06ee3d8b4bcdab18d31e71c965d5` has both strategies,
+   780 feasible vectors, and nine tested allocations under the bounded policy.
+2. In **Simulation**, add the same two strategies in that order. Select
+   **LucidFlex 50K**, **Evaluation**, and **90 days**. Keep **Individual MNQ**
+   and set 2–6 total MNQ. Expect 15 allocations because each total `t` has
+   `t−1` possible positive two-strategy splits. The exhaustive report
+   `25f2c8b804524f3380e0d324681285e8` saves all 15 at 1,000 paths. At 6 MNQ,
+   `1+5` passes 406 IS paths and `5+1` passes 452, proving that the reversed
+   sizes are independently scored under identical account and source inputs.
+3. Inspect `1+5`. The saved child `1356cd4e89ae4cf38542b573f70ac1aa` shows
+   the frozen allocation, 406 IS passes and 335 OOS passes out of 1,000 each.
+   Reopen the sizing table on mobile and confirm that the same row links to
+   the child and displays the saved OOS count.
+
+The focused backend and product checks cover weighted compatibility and
+the fixed-basket search. The live portal on port 8000 was refreshed after
+checking for active jobs. Its PID is in `data/.portal-server.lock` for
+graceful termination when idle. The earlier weighted report remains available.
+
+[Individual ranking](evidence/prop-desk-individual-simulation/desktop-ranking.png) ·
+[Mobile inspection](evidence/prop-desk-individual-simulation/mobile-inspection.png) ·
+[Live verification and report IDs](evidence/prop-desk-individual-simulation/live-verification.json)

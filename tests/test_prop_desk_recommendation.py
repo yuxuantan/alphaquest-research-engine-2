@@ -71,3 +71,13 @@ def test_whole_mnq_same_total_can_change_the_best_stage_allocation():
 def test_bounded_has_a_reproducible_budget_and_exact_count():
     assert sum(recommendation.feasible_count(size, 1, 5) * n for size, n in [(1, 4), (2, 6), (3, 4), (4, 1)]) == 125
     assert list(recommendation.positive_mixes(3, 4, 4)) == [(1, 1, 2), (1, 2, 1), (2, 1, 1)]
+
+
+def test_refinement_keeps_paired_close_contenders_and_exact_ties():
+    leader = [1] * 48 + [0] * 48
+    outcomes = {(1, 5): leader, (2, 4): [0] + leader[1:], (3, 3): [0] * 3 + leader[3:],
+                (4, 2): [0] * 40 + leader[40:], (5, 1): leader}
+    leaders = [dict(targets=target) for target in ((1, 5), (5, 1), (2, 4), (3, 3), (4, 2))]
+    assert recommendation.refine_targets(leaders, outcomes) == [(1, 5), (5, 1), (2, 4), (3, 3)]
+    leaders = [leaders[i] for i in (0, 2, 1, 3, 4)]
+    assert recommendation.refine_targets(leaders, outcomes) == [(1, 5), (2, 4), (5, 1), (3, 3)]

@@ -107,13 +107,20 @@ def test_recommendation_product_journey(page, portal, tmp_path, monkeypatch, des
             timing[phase]['reopen_seconds'] = monotonic() - started
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             timing[phase].update(ranking['timing'])
+            sizes = desk.get_by_role('region', name='Ranked tested sizes')
+            best = sizes.locator(f'[data-allocation="{ranking["ranking"][0]["candidate"]}"]')
+            playwright.expect(best).to_contain_text('1,000/1,000')
+            playwright.expect(best.get_by_role('link', name='Inspect')).to_be_visible()
             if phase == 'evaluation':
-                desk.get_by_text('Tested allocations', exact=True).click()
-                desk.get_by_label('Tested allocation').select_option('1-3-1')
-                desk.get_by_role('button', name='Inspect tested allocation').click()
+                other = sizes.locator('[data-allocation="1-3-1"]')
+                playwright.expect(other).to_contain_text('Open size to assess')
+                other.get_by_role('button', name='Inspect 3 + 1 MNQ').click()
                 playwright.expect(desk.get_by_role('heading', name='Equity', exact=True)).to_be_visible(timeout=45000)
                 alt = saved(client, page.url.split('analysis=')[1].split('&')[0])['report']
                 assert alt['basket']['sizes'][0]['allocation']['micros'] == [3,1]
+                desk.get_by_role('link', name='← Saved recommendation').click()
+                playwright.expect(other.get_by_role('link', name='Inspect 3 + 1 MNQ')).to_be_visible()
+                playwright.expect(other.get_by_role('cell').nth(5)).to_contain_text('Pass 100% (1,000/1,000)')
             else:
                 changed = client.post(f'{API}/recommendations', json=dict(declaration, members=alternate))
                 assert changed.status_code == 202, changed.text
@@ -206,7 +213,10 @@ def test_warm_four_strategy_search_timing_and_exact_comparator(portal, tmp_path,
             model = job['report']['recommendation']
             assert model['workload']['feasible'] == 175
             assert all(4 <= sum(row['targets']) <= 6 for group in model['groups'] for row in group['candidates'])
-            assert 0 < model['workload']['score_cache_hits'] and model['workload']['tested'] < 175
+            assert 0 < model['workload']['score_cache_hits'] and model['workload']['tested'] == 175
+            assert model['search_policy']['method'] == 'full_screen'
+            assert all(c['path_stages'][0] == 96 for g in model['groups'] for c in g['candidates'])
+            assert any(c['path_stages'] == [96, 384, 1000] for g in model['groups'] for c in g['candidates'])
             _, reopen_seconds = timed(large)
             # The raised limit and the same IS sources produce the exhaustive oracle.
             with monkeypatch.context() as patched:

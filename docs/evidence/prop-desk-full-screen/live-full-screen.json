@@ -1,0 +1,66 @@
+{
+  "report": "6bcfd87280e44eacb533fd89bd485b48",
+  "workload": {
+    "account_paths_computed": 77768,
+    "exhaustive": false,
+    "feasible": 175,
+    "score_cache_hits": 0,
+    "score_calls": 268,
+    "tested": 175,
+    "workers": 1
+  },
+  "policy": {
+    "exact_limit": 24,
+    "finalists": 2,
+    "full_screen_limit": 256,
+    "method": "full_screen",
+    "paired_se_multiplier": 2,
+    "refinement_paths": 384,
+    "retain_best_screened_weighted_baseline": true,
+    "screened_per_subset": 9,
+    "screening_paths": 96
+  },
+  "alternative": {
+    "combination": 8,
+    "id": "8-1-5",
+    "metrics": {
+      "median_trading_days_to_target": 13,
+      "outcome_counts": {
+        "breached": 517,
+        "passed": 281,
+        "provider_expired": 202
+      },
+      "pass_rate_interval_95": [
+        0.25401929930572814,
+        0.30965688227511107
+      ],
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.517,
+        "passed": 0.281,
+        "provider_expired": 0.202
+      }
+    },
+    "path_stages": [
+      96,
+      384,
+      1000
+    ],
+    "paths": 1000,
+    "screened": true,
+    "size_provisional": false,
+    "targets": [
+      1,
+      5
+    ],
+    "tested_total": 6,
+    "weighted_baseline": false
+  },
+  "timing": {
+    "is_seconds": 3.0920205420115963,
+    "source_seconds": 0.687406207958702,
+    "worker_and_recheck_seconds": 0.2503027080092579
+  },
+  "legacy_cached_evidence": "65e23dfa07cf41e48126f8901671bfe9",
+  "inspected_alternative_report": "6ba620b2272a420cad745f729c53caf8"
+}

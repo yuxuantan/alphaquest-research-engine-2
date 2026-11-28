@@ -41,6 +41,9 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
         desk.get_by_role('button', name='Clear', exact=True).click()
         playwright.expect(desk.get_by_label('Weight for member 1')).to_have_count(0)
         add_members()
+        sizing = desk.get_by_label('Allocation sizing')
+        playwright.expect(sizing).to_have_value('individual')
+        sizing.select_option('weighted')
         desk.get_by_label('Account profile').select_option('lucidflex-50k')
         desk.get_by_role('button', name='30 days', exact=True).click()
         playwright.expect(desk.get_by_label('Observation horizon (trading days)')).to_have_value('30')
@@ -67,7 +70,15 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
         assert row['source_backtest_id'] == members[0]['oos_backtest_id']
         assert (float(row['net_pnl']), float(row['commission'])) == (798, 2)
         (evidence/'evaluation-oos-trades.csv').write_bytes(ledger.content)
-        desk.get_by_label('Inspect tested size').select_option('5')
+        sizes = desk.get_by_role('region', name='Ranked tested sizes')
+        first_size = sizes.locator('[data-allocation="4"]')
+        for column in (4, 5):
+            playwright.expect(first_size.get_by_role('cell').nth(column)).to_contain_text('Pass 100% (1,000/1,000)')
+        tied = sizes.locator('[data-allocation="5"]')
+        playwright.expect(tied).to_contain_text('Same targets as 4 MNQ')
+        tied.get_by_role('button', name='Inspect 5 MNQ').click()
+        playwright.expect(desk.get_by_role('heading', name='Inspect 5 MNQ')).to_be_visible()
+        playwright.expect(desk.get_by_label('Inspect tested size')).to_have_value('5')
         desk.get_by_role('button', name='Optimal · IS-selected 4 MNQ').click()
         playwright.expect(desk.get_by_label('Inspect tested size')).to_have_value('4')
         playwright.expect(desk.get_by_role('img', name='Portfolio and members historical closed-trade equity')).to_be_visible()
@@ -75,9 +86,25 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
         page.reload()
         playwright.expect(desk.get_by_label('Inspect tested size')).to_have_value('4')
 
+        with page.expect_response('**/api/prop-desk/recommendations') as individual_launch:
+            desk.get_by_role('button', name='Search individual MNQ').click()
+        assert individual_launch.value.status == 202, individual_launch.value.text()
+        individual_id = individual_launch.value.json()['id']
+        table = desk.get_by_role('region', name='Ranked tested sizes')
+        playwright.expect(table.locator('tbody tr')).to_have_count(7, timeout=60000)
+        individual = client.get(f'/api/prop-desk/{individual_id}').json()['report']
+        assert individual['configuration']['fixed_basket'] is True
+        group, = individual['recommendation']['groups']
+        assert group['members'] == [0,1]
+        assert {tuple(r['targets']) for r in group['candidates'] if r['tested_total'] == 4} == {(1,3),(2,2),(3,1)}
+        playwright.expect(table.locator('[data-allocation="1-3-1"]')).to_contain_text('3 + 1')
+        playwright.expect(table.locator('[data-allocation="1-1-3"]')).to_contain_text('1 + 3')
+        page.goto(root + '/#prop-desk?analysis=' + simulation)
+
         page.set_viewport_size({'width':390, 'height':844})
         desk.get_by_role('link', name='← Prop Desk setup').click()
         add_members()
+        desk.get_by_label('Allocation sizing').select_option('weighted')
         desk.get_by_label('Minimum total MNQ').fill('4')
         desk.get_by_label('Maximum total MNQ').fill('5')
         desk.get_by_role('button', name='Funded', exact=True).click()
@@ -92,6 +119,8 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
         assert funded_oos['mean_trader_receipts'] == funded_oos['median_trader_receipts'] == 13000
         assert funded_oos['probability_any_payout'] == 1 and funded_oos['reporting_sessions'] == 261
         assert funded_oos['milestones'][0]['median_trading_day'] == 5
+        funded_row = desk.get_by_role('region', name='Ranked tested sizes').locator('[data-allocation="4"]')
+        playwright.expect(funded_row.get_by_role('cell').nth(5)).to_contain_text('$13,000.00 mean receipts')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         page.screenshot(path=evidence/'funded-mobile.png', full_page=True)
 
@@ -139,7 +168,7 @@ def test_prop_desk_presets_and_row_oos(page, portal, monkeypatch, tmp_path, desk
         (evidence/'standalone-trades.csv').write_bytes(diagnostic_csv.content)
         page.screenshot(path=evidence/'standalone-mobile.png', full_page=True)
         ids = dict(evaluation=simulation, funded=funded, optimise=search_id,
-                   alternate=changed['id'], missing=missing['id'], diagnostic=diagnosis)
+                   alternate=changed['id'], missing=missing['id'], diagnostic=diagnosis, individual=individual_id)
         for name, report_id in ids.items():
             actual = client.get(f'/api/prop-analyses/{report_id}/downloads/report.json')
             assert actual.is_success, actual.text
