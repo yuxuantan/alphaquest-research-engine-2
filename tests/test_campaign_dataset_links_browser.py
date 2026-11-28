@@ -94,6 +94,48 @@ def test_legacy_run_permanent_delete_and_busy_preview(page,portal,tmp_path):
         evidence(tmp_path,'legacy-and-busy',dict(synthetic=True,legacy_run_deleted=True,dataset_kept=True,running_job_blocks_delete=True,temporary_server='Stopped by fixture teardown'))
 
 
+def test_saved_results_cascade_preview_and_confirmation(page,portal,tmp_path):
+    from uuid import uuid4
+
+    base=portal['url']
+    with ResearchHTTPClient(base_url=base,timeout=120) as client:
+        dataset=save(client);record=start_is(client,dataset)
+        campaign=uuid4().hex
+        with portal['app'].state.prop_analyses.connect() as db:
+            db.execute('INSERT INTO research_campaigns VALUES (?,?,?,?,NULL,NULL)',(campaign,'2026-11-28','{}','{}'))
+            db.execute('INSERT INTO campaign_sources VALUES (?,?)',(campaign,record['id']))
+        page.goto(base+'/#campaigns/consecutive_green_hold')
+        card=page.locator('.workflow-real-dataset').filter(has_text=dataset['name'])
+        card.get_by_text('Manage saved results',exact=True).click()
+        card.get_by_role('button',name=f'Delete saved results for {dataset["name"]}',exact=True).click()
+        dialog=page.get_by_role('dialog')
+        playwright.expect(dialog).to_contain_text('No records are eligible for deletion')
+        dialog.get_by_role('checkbox').check()
+        playwright.expect(dialog.get_by_role('button',name='Permanently delete',exact=True)).to_be_disabled()
+        dialog.get_by_role('button',name='Cancel',exact=True).click()
+        option=card.get_by_role('button',name='Delete results and dependent records…',exact=True)
+        option.click()
+        playwright.expect(dialog).to_contain_text('1 backtest report(s)')
+        dialog.get_by_text('Research campaigns and phase packages',exact=True).click()
+        playwright.expect(dialog.get_by_role('link',name=campaign,exact=True)).to_be_visible()
+        confirm=dialog.get_by_role('button',name='Permanently delete',exact=True)
+        playwright.expect(confirm).to_be_disabled()
+        dialog.screenshot(path=tmp_path/'dependent-preview.png')
+        dialog.get_by_role('button',name='Cancel',exact=True).click()
+        assert client.get('/api/backtests/'+record['id']).status_code==200
+        option.click()
+        dialog.get_by_role('checkbox').check()
+        confirm.click()
+        playwright.expect(card).to_have_count(0)
+        page.reload();playwright.expect(card).to_have_count(0)
+        assert client.get('/api/backtests/'+record['id']).status_code==404
+        assert client.get('/api/datasets/'+dataset['id']).status_code==200
+        with portal['app'].state.prop_analyses.connect() as db:
+            assert db.execute('SELECT 1 FROM research_campaigns WHERE id=?',(campaign,)).fetchone() is None
+        evidence(tmp_path,'dependent-results',dict(synthetic=True,backtest=record['id'],campaign=campaign,
+            default_delete_empty=True,cancel_preserves_all=True,dependent_records_deleted=True,dataset_kept=True))
+
+
 def test_downstream_simulations_explicit_in_preview_and_cascade(page,portal,tmp_path):
     # Report membership is a labelled metadata graph fixture; no numerical claims.
     # Use the running app's actual store; seed uses normal mechanics execution and

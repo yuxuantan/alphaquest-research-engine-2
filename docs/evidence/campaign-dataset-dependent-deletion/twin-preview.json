@@ -1,0 +1,24 @@
+{
+  "strategy": "twin_continuation",
+  "dataset": "ofb_bars_NQ",
+  "group_id": "e88d075f8cd658d8f2697abcf34ffb0088b537e13dbad343cf24e468c28ae71a",
+  "standard_deletable_reports": 0,
+  "standard_retained_reports": 36,
+  "expanded_record_counts": {
+    "workflow_ids": 0,
+    "job_ids": 0,
+    "run_ids": 36,
+    "analysis_ids": 6,
+    "phase_campaign_ids": 3,
+    "research_study_ids": 0,
+    "simulation_ids": 0
+  },
+  "expanded_files": 900,
+  "file_list_matches_on_disk": true,
+  "expanded_blockers": [],
+  "expanded_retained_reports": 0,
+  "confirmation_disabled_before_acknowledgement": true,
+  "cancelled": true,
+  "delete_requests_sent": 0,
+  "report_count_after_cancel": 36
+}

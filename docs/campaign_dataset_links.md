@@ -30,6 +30,24 @@ existing workflows or other owners. It never implicitly selects every workflow
 sharing a dataset name or content hash. Shared evidence can remain visible under
 saved results after its original workflow is deleted.
 
+### Delete results and dependent records
+
+Use **Delete results and dependent records…** under **Validation study details**
+or **Manage saved results** to remove the selected results and their saved
+dependants. The preview follows downstream references across backtests, batches,
+validation studies, Prop analyses and portfolios, and research campaigns.
+For example, if backtest B uses A and C uses B, selecting A for full deletion
+lists all three. Review the expandable record and file lists before confirming.
+The normal delete option remains available when you want to keep shared results.
+If its preview finds no eligible records, the confirmation stays disabled.
+
+The expanded option preserves unrelated inputs to a dependent result. A
+dependent portfolio that used both A and an independent backtest D is removed
+as a whole, while D remains available unless it is independently in scope.
+Running or queued work, active report generation, and protected forward-monitor
+or frozen-procedure references block the full action. Original datasets,
+strategy code and historical research access are kept.
+
 Old reversible-removal markers no longer hide cards. Previously hidden workflows
 become visible so they can be individually inspected or permanently deleted.
 The old restore and source-wide delete contracts are retired.
@@ -53,7 +71,7 @@ inventory does not select an otherwise unrelated study for deletion. Other
 strategy definitions and original input datasets are never selected as a result
 of a multi-strategy study being included.
 
-Other workflows using the same dataset remain linked and retain their own files.
+Sharing a dataset alone does not make another workflow a dependency.
 Reports used by surviving workflows, batches, research campaigns, analyses or
 monitors are preserved with their transitive source/stress evidence. Running or
 queued work, active detail generation and unfinished automation block deletion.
@@ -86,9 +104,11 @@ file deletion, not forensic erasure of backups or disk blocks.
 
 Use `group_id` (64 hex characters) instead of `workflow_id` for a legacy
 saved-results group. Exactly one target is required; source-only, campaign-only
-and mixed-scope requests reject. `DELETE /api/campaign-dataset-links` requires
+and mixed-target requests reject. Set `include_dependents` to `true` to preview
+the expanded downstream scope. The original request and receipt format still
+work for the default scope. `DELETE /api/campaign-dataset-links` requires
 that same body plus the preview's `confirmation_sha256`. Changed membership,
-files, dependencies or state require a fresh preview. Repeating a successful
+files, dependencies, scope or state require a fresh preview. Repeating a successful
 DELETE with its exact target/token retries cleanup safely without deleting new
 workflows created later.
 
@@ -139,3 +159,29 @@ The focused browser path is
 Current screenshots and an inspection-only preview of the previously blocked
 user study are in `artifacts/dependent-research-deletion-20261117/`. No user
 workflow, study or evidence was deleted during installation.
+
+### Full-deletion verification (2026-11-28)
+
+For an inspection-only check, open **Strategy Validation → Twin Continuation**,
+expand **Manage saved results** on `ofb_bars_NQ`, and open **Delete saved results…**.
+The preview finds zero eligible records because the reports are shared. Cancel,
+open **Delete results and dependent records…**, and expand the report and package
+lists. The verified preview lists 36 backtests, six analyses, three research
+campaigns or phase packages, and 900 files, checked against the report folders.
+Cancel closes the preview and leaves
+the live reports accessible. See [the captured preview](evidence/campaign-dataset-dependent-deletion/twin-preview.png)
+and [the recorded counts](evidence/campaign-dataset-dependent-deletion/twin-preview.json).
+
+The focused API fixture uses three chained real backtests over synthetic data
+and labelled downstream metadata. It checks full membership, an unrelated
+input, a running job, a protected forward reference, scope and stale-token
+rejection, and repeat confirmation. The Chromium journey confirms deletion on
+disposable evidence, reloads the page, and checks the original dataset is still
+available. See [the disposable browser result](evidence/campaign-dataset-dependent-deletion/synthetic-result.json).
+
+```sh
+.venv/bin/python -m pytest -q tests/test_campaign_dataset_links.py tests/test_prop_sim_deletion.py
+ALPHAQUEST_TEST_BROWSER_CHANNEL=chrome .venv/bin/python -m pytest -q \
+  tests/test_campaign_dataset_links_browser.py::test_saved_results_cascade_preview_and_confirmation \
+  tests/test_campaign_dataset_links_browser.py::test_permanent_workflow_preview_cancel_delete_and_reload
+```

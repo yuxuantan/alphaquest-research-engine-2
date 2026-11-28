@@ -9,7 +9,7 @@ import sqlite3
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, model_validator
 from starlette.concurrency import run_in_threadpool
 
 
@@ -25,16 +25,25 @@ def reference_id(value):
     return value
 
 
-def references(value):
+def references(value, *, include_access=True):
     """IDs may occur in older nested snapshots as well as today's explicit pins."""
-    if isinstance(value,dict):return set().union(set(),*(references(v) for v in value.values()))
-    if isinstance(value,list):return set().union(set(),*(references(v) for v in value))
+    if isinstance(value,dict):
+        return set().union(set(),*(references(v,include_access=include_access) for k,v in value.items()
+                                   if include_access or k!='prior_access'))
+    if isinstance(value,list):return set().union(set(),*(references(v,include_access=include_access) for v in value))
     return {value,reference_id(value)} if isinstance(value,str) else set()
 
 
 def identity(dataset):
     return dict(sha256=dataset['sha256'],source_timezone=dataset['source_timezone'],
         source_kind=dataset.get('source_kind','native'))
+
+
+def deletion_scope(strategy_id, source, workflow_id, group_id, include_dependents):
+    scope = [strategy_id, source, workflow_id, group_id]
+    if include_dependents:
+        scope.append('include_dependents')
+    return fingerprint(scope)
 
 
 class SourceIdentity(BaseModel):
@@ -50,6 +59,7 @@ class Preview(BaseModel):
     source: SourceIdentity
     workflow_id: StrictStr | None = Field(default=None,pattern=r'^[0-9a-f]{32}$')
     group_id: StrictStr | None = Field(default=None,pattern=r'^[0-9a-f]{64}$')
+    include_dependents: StrictBool = False
 
     @model_validator(mode='after')
     def one_target(self):
@@ -109,14 +119,16 @@ class CampaignDatasetLinks:
             except OSError:pending.append(str(staged))
         return pending
 
-    def preview(self,strategy_id,source,db=None,*,workflow_id=None,group_id=None):
+    def preview(self,strategy_id,source,db=None,*,workflow_id=None,group_id=None,include_dependents=False):
         if db is None:
             with self.analyses.lock,self.runs.detail_lock,self.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                return self.preview(strategy_id,source,db,workflow_id=workflow_id,group_id=group_id)
+                return self.preview(strategy_id,source,db,workflow_id=workflow_id,group_id=group_id,
+                                    include_dependents=include_dependents)
         source=SourceIdentity.model_validate(source).model_dump()
-        Preview(strategy_id=strategy_id,source=source,workflow_id=workflow_id,group_id=group_id)
-        key=fingerprint([strategy_id,source,workflow_id,group_id]);snapshots=[];blockers=[]
+        Preview(strategy_id=strategy_id,source=source,workflow_id=workflow_id,group_id=group_id,
+                include_dependents=include_dependents)
+        key=deletion_scope(strategy_id,source,workflow_id,group_id,include_dependents);snapshots=[];blockers=[]
         tables={}
         def rows(table):
             if table not in tables:tables[table]=list(db.execute(f'SELECT * FROM {table}'))
@@ -245,11 +257,83 @@ class CampaignDatasetLinks:
             study_refs[id]=refs | aids | outputs
             study_outputs[id]=outputs;study_analyses[id]=aids
         study_ids=set()
+        workflow_pins={id:references(w) & runs.keys() for id,w in workflows.items()}
+        for table in ('campaign_broad_state','campaign_narrow_state'):
+            for r in rows(table):workflow_pins.setdefault(r[0],set()).update(references(json.loads(r[-1])) & runs.keys())
+        for r in rows('campaign_workflow_runs'):workflow_pins.setdefault(r[0],set()).add(r[1])
+        for r in rows('mechanic_job_attempts'):
+            if r[0] in runs:workflow_pins.setdefault(r[1],set()).add(r[0])
+
+        if include_dependents:
+            run_dependencies = {id:references(record,include_access=False) for id,record in runs.items()}
+            batch_sources = {id: references(job,include_access=False) & runs.keys() for id,job in jobs.items()}
+            for (id,_), refs in trial_refs.items():
+                batch_sources.setdefault(id,set()).update(refs)
+            batch_outputs = [(id,reference_id(payload.get('run_id'))) for id,_,payload in trials]
+            campaign_sources = rows('prop.campaign_sources')
+            campaign_jobs = rows('prop.campaign_jobs')
+            phase_ids = {row[0] for row in campaign_rows}
+            prop_links = rows('optimization_prop_links')
+            simulation_refs = {id:references({key:saved.get(key) for key in ('configuration', 'qualification', 'portfolio', 'campaign_ids')})
+                               for id,saved in sims.items()}
+            saved_parents = {}
+            for id,row in analysis_rows.items():
+                if row[4]!='complete' or not row[1].startswith('prop-desk-fixed:'):
+                    continue
+                try:
+                    report=json.loads((self.analyses.root/UUID(id).hex/'report.json').read_text())
+                    parent=reference_id(report.get('configuration',{}).get('parent_id'))
+                    if parent in analysis_rows:saved_parents[id]=parent
+                except (OSError,ValueError):
+                    pass
+
+        def expand_dependents():
+            # Walk toward consumers and owned outputs. A consumer's other
+            # source reports and its original dataset are not catch-all seeds.
+            touched=candidates | analysis_ids | job_ids | campaign_ids | study_ids | sim_ids | selected
+            candidates.update(id for id,refs in run_dependencies.items() if refs & touched)
+            job_ids.update(id for id,refs in batch_sources.items() if refs & candidates)
+            job_ids.update(row[1] for row in prop_links if row[3] in analysis_ids and row[1] in jobs)
+            selected.update(id for id,pins in workflow_pins.items() if id in workflows and pins & candidates)
+            selected.update(row[1] for row in sanity if row[0] in analysis_ids and row[1] in workflows)
+            for id in job_ids:
+                selected.update(job_owners.get(id,set()) & workflows.keys())
+            owned_jobs.update(id for id,owners in job_owners.items() if id in jobs and owners & selected)
+            job_ids.update(id for id in owned_jobs if job_owners[id]<=selected)
+            for id in selected:
+                candidates.update(workflow_pins[id] & runs.keys())
+            candidates.update(id for id,r in runs.items()
+                if reference_id(r.get('run_metadata',{}).get('research',{}).get('workflow_id')) in selected)
+            candidates.update(rid for id,rid in batch_outputs if id in job_ids and rid in runs)
+            analysis_ids.update(r[0] for r in sanity if r[1] in selected)
+            analysis_ids.update(row[3] for row in prop_links if row[1] in job_ids and row[3] in analysis_rows)
+            analysis_ids.update(id for id,parent in saved_parents.items() if parent in analysis_ids)
+            campaign_ids.update(cid for cid,rid in campaign_sources if cid in phase_ids and rid in candidates)
+            campaign_ids.update(cid for cid,jid in campaign_jobs if cid in phase_ids and jid in job_ids)
+            campaign_ids.update(cid for cid,aid in campaign_analyses if cid in phase_ids and aid in analysis_ids)
+            campaign_ids.update(row[0] for row in campaign_rows if row[4] in analysis_ids)
+            campaign_ids.update(cid for _,cid,raw in assessments if cid in phase_ids and references(json.loads(raw)) & analysis_ids)
+            sim_ids.update(id for id,refs in simulation_refs.items() if refs & (touched | candidates | analysis_ids | campaign_ids | selected))
+            sim_ids.update(sid for sid,_,cid in phase_links if cid in campaign_ids and sid in sims)
+            for id in sim_ids:
+                expected=sims[id].get('campaign_ids',{})
+                actual={r[1]:r[2] for r in phase_links if r[0]==id}
+                if actual!=expected:block('inconsistent_simulation',id,'Downstream simulation phase references are inconsistent; repair them before deleting.')
+                campaign_ids.update(expected.values())
+                analysis_ids.update(references(sims[id].get('portfolio',{})) & analysis_rows.keys())
+            analysis_ids.update(row[4] for row in campaign_rows if row[0] in campaign_ids and row[4] in analysis_rows)
+            analysis_ids.update(aid for cid,aid in campaign_analyses if cid in campaign_ids and aid in analysis_rows)
+            for _,cid,raw in assessments:
+                if cid in campaign_ids:analysis_ids.update(references(json.loads(raw)) & analysis_rows.keys())
+
         # Native percentage/OOS assessments publish controlled backtests in the
         # normal RunStore. Include those owned outputs, not just their source
         # reports, and follow any analyses of those outputs to a fixed point.
         while True:
-            before=(len(candidates),len(analysis_ids),len(study_ids))
+            population=(candidates,analysis_ids,study_ids,campaign_ids,sim_ids,selected,job_ids)
+            before=tuple(map(len,population))
+            if include_dependents:
+                expand_dependents()
             for id,refs in study_refs.items():
                 if refs & (candidates | analysis_ids | job_ids | campaign_ids | sim_ids | selected):
                     study_ids.add(id)
@@ -264,9 +348,14 @@ class CampaignDatasetLinks:
                     candidates.add(id)
                 if any(meta.get(k) in candidates for k in ('detailed_from_run_id','risk_from_run_id')):
                     candidates.add(id)
+                if include_dependents and id in candidates:
+                    candidates.update(references(r.get('is_screening',{})) & runs.keys())
             analysis_ids.update(aid for aid,rid in analysis_sources if rid in candidates)
             analysis_ids.update(id for id,r in analysis_rows.items() if r[2] in candidates)
-            if before==(len(candidates),len(analysis_ids),len(study_ids)):break
+            if before==tuple(map(len,population)):break
+        if include_dependents:
+            retained_jobs=[dict(id=id,reasons=['Workflow '+w for w in sorted(job_owners[id]-selected)])
+                           for id in sorted(owned_jobs-job_ids)]
         owner_ids=campaign_ids | study_ids
         groups.update(r[1] for r in rows('library_runs') if r[0] in candidates)
         # External owners keep shared evidence. Never recursively delete an
@@ -293,12 +382,6 @@ class CampaignDatasetLinks:
                     if id in r:keep(keep_analyses,id,f'Forward monitor {r[0]}')
             for request,_,_,aid in rows('prop.lifecycle_comparisons'):
                 if aid==id:keep(keep_analyses,id,f'Lifecycle comparison {request}')
-        workflow_pins={id:references(w) & runs.keys() for id,w in workflows.items()}
-        for table in ('campaign_broad_state','campaign_narrow_state'):
-            for r in rows(table):workflow_pins.setdefault(r[0],set()).update(references(json.loads(r[-1])) & runs.keys())
-        for r in rows('campaign_workflow_runs'):workflow_pins.setdefault(r[0],set()).add(r[1])
-        for r in rows('mechanic_job_attempts'):
-            if r[0] in runs:workflow_pins.setdefault(r[1],set()).add(r[0])
         for id in candidates:
             for (jid,_),refs in trial_refs.items():
                 if jid not in job_ids and id in refs:keep(keep_runs,id,f'Backtest batch {jid}')
@@ -346,6 +429,8 @@ class CampaignDatasetLinks:
         for id in candidates & self.runs.detail_active:block('active_detail',id,'Wait for report detail generation before deleting.')
         for id in sim_ids:
             auto=sims[id].get('automation',{})
+            if include_dependents and sims[id].get('preparation',{}).get('status') in ('queued','running'):
+                block('active_simulation',id,'Wait for Prop Sim preparation to finish before deleting.',f'#prop-sim?analysis={id}')
             if auto and not auto.get('stop_requested') and any(phase.get('stage') not in ('complete','cancelled','error','no_eligible_candidates') for phase in auto.get('phases',{}).values()):
                 block('automation',id,'Stop the automatic simulation before deleting.',f'#prop-sim?analysis={id}')
         # These owners have live/research semantics outside this cleanup action.
@@ -360,6 +445,13 @@ class CampaignDatasetLinks:
                 if refs & (owner_ids | sim_ids | job_ids | selected | analysis_ids):block(table,r[0],f'{table} {r[0]} retains a downstream package. Remove that dependency first.')
         for cid,jid in rows('prop.campaign_jobs'):
             if jid in job_ids and cid not in owner_ids:block('research_campaign',cid,'A separate research campaign retains this backtest batch.',f'#backtests/prop/campaign/{cid}')
+        if include_dependents:
+            for id,reasons in sorted(keep_runs.items()):
+                block('protected_backtest',id,'Cannot fully remove backtest '+id+'. Retained by '+', '.join(sorted(reasons))+'.',f'#backtests/report/{id}')
+            for id,reasons in sorted(keep_analyses.items()):
+                block('protected_analysis',id,'Cannot fully remove analysis '+id+'. Retained by '+', '.join(sorted(reasons))+'.',f'#jobs/prop_analysis/{id}')
+            for job in retained_jobs:
+                block('protected_batch',job['id'],'Cannot fully remove a batch that still has a surviving owner.',f'#jobs/backtest_batch/{job["id"]}')
         run_ids=sorted(candidates-keep_runs.keys());delete_analyses=sorted(analysis_ids-keep_analyses.keys())
         files=[]
         for kind,root,ids in [('backtest',self.runs.root,run_ids),('analysis',self.analyses.root,delete_analyses)]:
@@ -375,6 +467,16 @@ class CampaignDatasetLinks:
             snapshots.extend([table,list(r)] for r in rows(table) if r[index] in ids)
         for table in ('robust_research','robust_research_steps','campaign_sources','campaign_jobs','campaign_analyses'):
             snapshots.extend(['prop.'+table,list(r)] for r in rows('prop.'+table) if r[0] in study_ids)
+        if include_dependents:
+            for table,ids,column in (
+                ('prop.campaign_sources',campaign_ids,0),('prop.campaign_jobs',campaign_ids,0),
+                ('prop.campaign_analyses',campaign_ids,0),('prop.campaign_assessments',campaign_ids | study_ids,1),
+                ('prop.analysis_sources',analysis_ids,0),('prop.workflow_prop_sim_phases',sim_ids,0),
+                ('optimization_trials',job_ids,0),('optimization_prop_links',job_ids,1),
+            ):
+                snapshots.extend([table,list(r)] for r in rows(table) if r[column] in ids)
+            snapshots.append(['prop_desk_parent_links',sorted((id,parent) for id,parent in saved_parents.items()
+                                                             if id in analysis_ids or parent in analysis_ids)])
         dataset=next((workflows[id]['declaration']['dataset'] for id in sorted(selected)),None)
         if dataset is None:dataset=next((runs[id]['run_metadata']['dataset'] for id in sorted(candidates)),{})
         result=dict(strategy_id=strategy_id,source=source,source_key=key,workflow_id=workflow_id,group_id=group_id,
@@ -390,6 +492,10 @@ class CampaignDatasetLinks:
             retained_analyses=[dict(id=id,reasons=sorted(reasons)) for id,reasons in sorted(keep_analyses.items())],
             files=files,file_count=len(files),bytes=sum(f['bytes'] for f in files),blockers=blockers,deletable=not blockers,
             interpretation='Permanently delete only the selected workflow (or saved-results group), its unshared phase evidence and the listed downstream research studies and Prop Sim/portfolio analyses. Other workflows using this dataset remain. Original datasets, campaign definitions, shared evidence and research-access history stay intact. There is no Undo.')
+        if include_dependents:
+            result.update(include_dependents=True, interpretation='Permanently delete the selected results and the listed dependent records. '
+                          'Original datasets, strategy code and research-access history are kept. Live monitoring and frozen procedure references '
+                          'can block full deletion. There is no Undo.')
         result['confirmation_sha256']=fingerprint([result,snapshots])
         return result
 
@@ -401,9 +507,10 @@ class CampaignDatasetLinks:
                 old=db.execute('SELECT payload FROM campaign_dataset_deletions WHERE id=?',(key,)).fetchone()
                 if old:
                     record=json.loads(old[0])
-                    if record['preview']['source_key']!=fingerprint([body.strategy_id,body.source.model_dump(),body.workflow_id,body.group_id]):raise ValueError('Deletion receipt does not match this source.')
+                    if record['preview']['source_key']!=deletion_scope(body.strategy_id,body.source.model_dump(),body.workflow_id,body.group_id,body.include_dependents):raise ValueError('Deletion receipt does not match this source or scope.')
                 else:
-                    plan=self.preview(body.strategy_id,body.source.model_dump(),db,workflow_id=body.workflow_id,group_id=body.group_id)
+                    plan=self.preview(body.strategy_id,body.source.model_dump(),db,workflow_id=body.workflow_id,group_id=body.group_id,
+                                      include_dependents=body.include_dependents)
                     if key!=plan['confirmation_sha256']:raise ValueError('Dependencies or results changed. Review a fresh deletion preview.')
                     if plan['blockers']:raise ValueError(' '.join(b['message'] for b in plan['blockers']))
                     record=dict(deleted=False,preview=plan,cleanup_pending=[])
@@ -413,7 +520,8 @@ class CampaignDatasetLinks:
                 try:
                     with self.connect() as db:
                         db.execute('BEGIN IMMEDIATE')
-                        fresh=self.preview(body.strategy_id,body.source.model_dump(),db,workflow_id=body.workflow_id,group_id=body.group_id)
+                        fresh=self.preview(body.strategy_id,body.source.model_dump(),db,workflow_id=body.workflow_id,group_id=body.group_id,
+                                           include_dependents=body.include_dependents)
                         if fresh['confirmation_sha256']!=key:raise ValueError('Dependencies changed. Review deletion again.')
                         for root,id in self._folders(plan):
                             destination=root/UUID(id).hex;staged=root/('.workflow-deleted-'+id)
@@ -490,7 +598,8 @@ async def call(request,method,*args,**kwargs):
 @router.post('/preview')
 async def preview(body:Preview,request:Request):
     await run_in_threadpool(request.app.state.strategy_library.browser.sync)
-    return await call(request,'preview',body.strategy_id,body.source.model_dump(),workflow_id=body.workflow_id,group_id=body.group_id)
+    return await call(request,'preview',body.strategy_id,body.source.model_dump(),workflow_id=body.workflow_id,
+                      group_id=body.group_id,include_dependents=body.include_dependents)
 
 
 @router.delete('')

@@ -208,15 +208,19 @@
         notice.append(node('span',deletionNotice.text));datasets.append(notice);
       }
       const deleteButton = (card,dataset,target) => {
-        const controls=node('div',undefined,'workflow-link-actions'),button=node('button',target.workflow_id?'Delete validation study and results…':'Delete saved results…','button secondary danger'),notice=node('p',undefined,'small');
-        button.type='button';button.setAttribute('aria-label',target.workflow_id?`Delete validation study ${target.workflow_id.slice(0,8)} for ${dataset.name}`:`Delete saved results for ${dataset.name}`);notice.setAttribute('role','status');controls.append(button);card.append(controls,notice);
-        button.onclick=async()=>{
-          button.disabled=true;
+        const controls=node('div',undefined,'workflow-link-actions'),button=node('button',target.workflow_id?'Delete validation study and results…':'Delete saved results…','button secondary danger'),
+          cascade=node('button','Delete results and dependent records…','button secondary danger'),notice=node('p',undefined,'small');
+        button.type=cascade.type='button';button.setAttribute('aria-label',target.workflow_id?`Delete validation study ${target.workflow_id.slice(0,8)} for ${dataset.name}`:`Delete saved results for ${dataset.name}`);notice.setAttribute('role','status');controls.append(button,cascade);card.append(controls,notice);
+        function disableActions(disabled){button.disabled=cascade.disabled=disabled;}
+        async function openPreview(includeDependents){
+          notice.textContent='Preparing deletion preview…';
+          disableActions(true);
           try {
-            const body={strategy_id:id,source:sourceOf(dataset),...target},preview=await read('/api/campaign-dataset-links/preview','POST',body);
+            const body={strategy_id:id,source:sourceOf(dataset),...target,...(includeDependents?{include_dependents:true}:{})},preview=await read('/api/campaign-dataset-links/preview','POST',body);
             if(!currentPage())return;
+            notice.textContent='';
             const dialog=node('dialog',undefined,'workflow-delete-dialog');dialog.setAttribute('aria-labelledby','workflow-delete-title');
-            const title=node('h2',preview.workflow_id?'Permanently delete validation study and results':'Permanently delete saved results');title.id='workflow-delete-title';
+            const title=node('h2',includeDependents?'Permanently delete results and dependent records':preview.workflow_id?'Permanently delete validation study and results':'Permanently delete saved results');title.id='workflow-delete-title';
             dialog.append(title,node('p',`${name} · ${preview.dataset_name}`),node('p',preview.workflow_id?`Selected validation study ${preview.workflow_id}`:'Selected saved-results group'),node('p',preview.interpretation));
             const summary=node('ul');
             const studyCount=preview.workflow_ids.length;
@@ -229,6 +233,7 @@
             };
             detail('Affected validation studies',preview.workflow_ids,value=>`#campaigns/workflows/${value}/mechanic_validation`);
             detail('Downstream simulations that will also be deleted',preview.simulation_ids,value=>`#prop-sim?analysis=${value}`);
+            detail('Research campaigns and phase packages',preview.phase_campaign_ids,value=>`#backtests/prop/campaign/${value}`);
             if(preview.research_studies?.length){
               const box=node('details');box.append(node('summary','Dependent research studies that will also be deleted'));const list=node('ul');
               for(const study of preview.research_studies){
@@ -251,11 +256,15 @@
             const consent=node('label',undefined,'workflow-delete-consent'),check=node('input');check.type='checkbox';
             consent.append(check,node('span','I understand that the selected validation study or saved-results group, listed downstream research studies, simulations and unshared results will be permanently deleted. There is no Undo.'));dialog.append(consent);
             const status=node('p',undefined,'small');status.setAttribute('role','status');dialog.append(status);
+            const hasWork=[preview.workflow_ids,preview.job_ids,preview.run_ids,preview.simulation_ids,preview.phase_campaign_ids,
+              preview.research_study_ids||[],preview.analysis_ids].some(items=>items.length>0);
+            if(!hasWork)status.textContent='No records are eligible for deletion with this option.';
+            if(includeDependents)consent.lastChild.textContent='I understand that all listed results and dependent records will be permanently deleted. There is no Undo.';
             const buttons=node('div',undefined,'workflow-link-actions'),cancel=node('button','Cancel','button secondary'),confirm=node('button','Permanently delete','button danger');
-            cancel.type=confirm.type='button';confirm.disabled=true;check.onchange=()=>{confirm.disabled=!check.checked||!preview.deletable;};cancel.onclick=()=>dialog.close();
+            cancel.type=confirm.type='button';confirm.disabled=true;check.onchange=()=>{confirm.disabled=!check.checked||!preview.deletable||!hasWork;};cancel.onclick=()=>dialog.close();
             buttons.append(cancel,confirm);dialog.append(buttons);document.body.append(dialog);
             const navigation=()=>dialog.close();window.addEventListener('hashchange',navigation);
-            dialog.addEventListener('close',()=>{window.removeEventListener('hashchange',navigation);dialog.remove();if(button.isConnected)button.disabled=false;},{once:true});
+            dialog.addEventListener('close',()=>{window.removeEventListener('hashchange',navigation);dialog.remove();if(button.isConnected)disableActions(false);},{once:true});
             confirm.onclick=async()=>{
               confirm.disabled=cancel.disabled=check.disabled=true;status.textContent='Deleting the listed records and files…';
               // Escape must not dismiss an in-flight deletion and hide its receipt.
@@ -265,15 +274,17 @@
                 if(receipt.cleanup_pending.length){
                   status.textContent='Catalogue deletion is complete, but some files still need cleanup. Click Retry file cleanup.';confirm.textContent='Retry file cleanup';confirm.disabled=false;cancel.disabled=false;return;
                 }
-                deletionNotice={strategy_id:id,text:`${preview.dataset_name}: selected ${preview.workflow_id?'validation study':'saved results'} and unshared results permanently deleted. Original dataset and strategy kept.${retained.length?' Shared evidence retained.':''}`};
+                deletionNotice={strategy_id:id,text:`${preview.dataset_name}: ${includeDependents?'selected results and dependent records':`selected ${preview.workflow_id?'validation study':'saved results'} and unshared results`} permanently deleted. Original dataset and strategy kept.${retained.length?' Shared evidence retained.':''}`};
                 dialog.close();if(currentPage())await renderCampaign();
               }catch(error){status.textContent=error.message+' Close this preview and review again before retrying.';cancel.disabled=false;}
               finally{dialog.removeEventListener('cancel',prevent);}
             };
             dialog.showModal();cancel.focus();
           } catch(error) { if(card.isConnected)notice.textContent=error.message; }
-          finally { if(button.isConnected&&!document.querySelector('.workflow-delete-dialog'))button.disabled=false; }
-        };
+          finally { if(button.isConnected&&!document.querySelector('.workflow-delete-dialog'))disableActions(false); }
+        }
+        button.onclick=()=>openPreview(false);
+        cascade.onclick=()=>openPreview(true);
       };
       const seen = new Set();
       for (const workflow of workflows.items) {

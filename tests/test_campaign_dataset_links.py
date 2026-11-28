@@ -29,6 +29,66 @@ def remove(client,body,p):
     return client.request('DELETE','/api/campaign-dataset-links',json=dict(body,confirmation_sha256=p['confirmation_sha256']))
 
 
+def test_opt_in_cascade_removes_transitive_consumers_and_keeps_other_inputs(client):
+    from test_research_workflow import save,start_is
+
+    dataset,_,workflow=create_workflow(client)
+    root=run_validation(client,workflow)['run_id']
+    other_dataset=save(client,days=3)
+    child,grandchild,unrelated=[start_is(client,other_dataset)['id'] for _ in range(3)]
+    runs=client.app.state.runs
+    with runs.connect() as db:
+        for consumer,source in ((child,root),(grandchild,child)):
+            db.execute("UPDATE runs SET manifest=json_set(manifest,'$.run_metadata.source_backtest_id',?) WHERE id=?",
+                       (source,consumer))
+    analysis,campaign=uuid4().hex,uuid4().hex
+    store=client.app.state.prop_analyses
+    with store.connect() as db:
+        automatic={id for id, in db.execute('SELECT id FROM analyses WHERE source_id IN (?,?,?)',(root,child,grandchild))}
+        unrelated_analyses={id for id, in db.execute('SELECT id FROM analyses WHERE source_id=?',(unrelated,))}
+        db.execute('INSERT INTO analyses VALUES (?,?,?,?,?,?,NULL)',(analysis,'cascade-fixture',grandchild,'2026-11-28','complete',''))
+        db.execute('INSERT INTO analysis_sources VALUES (?,?)',(analysis,grandchild))
+        db.execute('INSERT INTO research_campaigns VALUES (?,?,?,?,?,NULL)',(campaign,'2026-11-28','{}','{}',analysis))
+        db.executemany('INSERT INTO campaign_sources VALUES (?,?)',[(campaign,grandchild),(campaign,unrelated)])
+        db.execute('INSERT INTO campaign_analyses VALUES (?,?)',(campaign,analysis))
+
+    body,ordinary=preview(client,workflow)
+    assert ordinary['run_ids']==[] and {r['id'] for r in ordinary['retained_runs']}=={root}
+    cascade=dict(body,include_dependents=True)
+    response=client.post('/api/campaign-dataset-links/preview',json=cascade)
+    assert response.is_success,response.text
+    plan=response.json()
+    assert plan['deletable'] and set(plan['run_ids'])=={root,child,grandchild}
+    assert set(plan['analysis_ids'])==automatic | {analysis} and plan['phase_campaign_ids']==[campaign]
+    assert remove(client,cascade,ordinary).status_code==409
+    assert remove(client,body,plan).status_code==409
+    with store.connect() as db:
+        db.execute("UPDATE analyses SET status='running' WHERE id=?",(analysis,))
+    blocked=client.post('/api/campaign-dataset-links/preview',json=cascade).json()
+    assert not blocked['deletable'] and any(b['id']==analysis for b in blocked['blockers'])
+    assert remove(client,cascade,plan).status_code==409
+    with store.connect() as db:
+        db.execute("UPDATE analyses SET status='complete' WHERE id=?",(analysis,))
+        monitor=uuid4().hex
+        db.execute('INSERT INTO forward_source_refs VALUES (?,?)',(monitor,root))
+    blocked=client.post('/api/campaign-dataset-links/preview',json=cascade).json()
+    assert not blocked['deletable'] and any(b['id']==root for b in blocked['blockers'])
+    assert remove(client,cascade,blocked).status_code==409
+    with store.connect() as db:
+        db.execute('DELETE FROM forward_source_refs WHERE monitor_id=?',(monitor,))
+    fresh=client.post('/api/campaign-dataset-links/preview',json=cascade).json()
+    removed=remove(client,cascade,fresh)
+    assert removed.is_success,removed.text
+    assert remove(client,cascade,fresh).json()==removed.json()
+    assert all(client.get('/api/backtests/'+id).status_code==404 for id in (root,child,grandchild))
+    assert all(store.get(id) is None for id in automatic | {analysis})
+    assert all(store.get(id) is not None for id in unrelated_analyses)
+    with store.connect() as db:
+        assert db.execute('SELECT 1 FROM research_campaigns WHERE id=?',(campaign,)).fetchone() is None
+    assert client.get('/api/backtests/'+unrelated).status_code==200
+    assert all(client.get('/api/datasets/'+data['id']).status_code==200 for data in (dataset,other_dataset))
+
+
 def test_permanent_results_and_jobs_deleted_dataset_campaign_kept_and_reopen(client):
     dataset,config,workflow=create_workflow(client);result=run_validation(client,workflow)
     runs=client.app.state.runs;folder=runs.root/result['run_id']

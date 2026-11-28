@@ -1,0 +1,9 @@
+{
+  "synthetic": true,
+  "backtest": "d92b648600354ba18891a38bbde4e1ff",
+  "campaign": "5db53e33deff47e1af33e619938ff5d0",
+  "default_delete_empty": true,
+  "cancel_preserves_all": true,
+  "dependent_records_deleted": true,
+  "dataset_kept": true
+}
