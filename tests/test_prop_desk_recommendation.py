@@ -4,7 +4,8 @@ from dataclasses import replace
 
 import pytest
 
-from alphaquest.prop import desk, desk_optimizer, desk_recommendation as recommendation
+from alphaquest.prop import desk, desk_global_ranking, desk_optimizer, desk_recommendation as recommendation
+from alphaquest.prop_desk import automatic_oos_candidates
 
 
 def prepared(phase, profile_id, days, paths=8):
@@ -81,3 +82,35 @@ def test_refinement_keeps_paired_close_contenders_and_exact_ties():
     assert recommendation.refine_targets(leaders, outcomes) == [(1, 5), (5, 1), (2, 4), (3, 3)]
     leaders = [leaders[i] for i in (0, 2, 1, 3, 4)]
     assert recommendation.refine_targets(leaders, outcomes) == [(1, 5), (2, 4), (5, 1), (3, 3)]
+
+
+def test_automatic_oos_uses_ranked_sizes_and_verified_coverage():
+    parent = dict(configuration={'members': [{'oos_backtest_id':'a'}, {'oos_backtest_id':None}]},
+                  recommendation={'oos_days':['2026-01-15'],
+                      'ranking':[dict(combination=1, candidate='1-2', path_count=1000),
+                                 dict(combination=2, candidate='2-3', path_count=1000)],
+                      'groups':[dict(id=1, members=[0], candidates=[dict(id='1-2', paths=1000),
+                          dict(id='1-3', paths=1000), dict(id='1-4', paths=96)]),
+                          dict(id=2, members=[1], candidates=[dict(id='2-3', paths=1000)])]})
+    assert automatic_oos_candidates(parent) == ['1-2']
+    parent['configuration']['fixed_basket'] = True
+    assert automatic_oos_candidates(parent) == ['1-2', '1-3']
+    parent['recommendation']['oos_days'] = []
+    assert automatic_oos_candidates(parent) == []
+
+
+def test_full_grid_workload_and_strict_payout_ranking():
+    config = dict(phase='funded', size_rule='first_year', members=[{}, {}], minimum_members=1,
+                  minimum_micros=2, maximum_micros=40, observation_sessions=90)
+    assert desk_global_ranking.workload(config) == 858
+    with pytest.raises(ValueError, match='858 allocations.*383'):
+        desk_global_ranking.workload(dict(config, observation_sessions=261))
+
+    def candidate(id, micros, probability, day):
+        return dict(id=id, combination=1, targets=(micros,), tested_total=micros, paths=1000,
+                    size_provisional=False, metrics=dict(probability_any_payout=probability,
+                        mean_trader_receipts=100, milestones=[dict(median_trading_day=day)]))
+
+    rows = [candidate('1-4', 4, .5, 10), candidate('1-3', 3, .499, 5), candidate('1-2', 2, .5, 10)]
+    result = desk_global_ranking.top_allocations([dict(candidates=rows)], config, 1000)
+    assert [row['candidate'] for row in result] == ['1-2', '1-4', '1-3']

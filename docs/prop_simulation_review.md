@@ -16255,3 +16255,93 @@ graceful termination when idle. The earlier weighted report remains available.
 [Individual ranking](evidence/prop-desk-individual-simulation/desktop-ranking.png) ·
 [Mobile inspection](evidence/prop-desk-individual-simulation/mobile-inspection.png) ·
 [Live verification and report IDs](evidence/prop-desk-individual-simulation/live-verification.json)
+
+#### Automatic OOS for ranked allocations (2026-11-28)
+
+Optimise publishes its IS ranking first and automatically queues an OOS
+assessment for each ranked combination with linked OOS coverage, at its
+saved size. Individual MNQ Simulation does the same for every full-path
+ranked size in the fixed basket. Screened allocations and alternative sizes
+in Optimise are still inspectable on demand. The ranking shows queued,
+running and failed assessments and fills the OOS cells as children seal.
+An unavailable row shows the missing source or common coverage reason.
+
+The worker reuses the verified preparation and the existing sealed child
+identity. A repeat Run reuses existing children and queues missing work.
+Opening a report reads status and evidence. The parent IS report bytes,
+ranking and sizes stay fixed while its children finish.
+
+1. In **Prop Desk → Optimise**, add VWAP `1443ec1b` and Twin `364df135`.
+   Choose LucidFlex 50K, Evaluation, 73 observation sessions, sequential MAE,
+   2–3 total MNQ and one strategy minimum. Click **Run Optimise**. Stay on
+   the ranking without opening an allocation. The three eligible rows fill
+   automatically. The paired `1+2`, Twin at 3, and VWAP at 3 showed
+   **41.6%**, **34.4%** and **11.9%** OOS pass probabilities.
+2. Run **Simulation** with the same settings and **Individual MNQ**. The
+   full-path `1+1`, `1+2`, and `2+1` mixes each receive OOS automatically.
+   Their OOS pass counts are **290**, **416** and **362** of 1,000.
+3. Reopen both saved reports on mobile. The values are still present. The
+   verification summed the actual path outcomes for all six children and
+   checked that both sealed parent reports stayed byte-identical during OOS.
+
+Eight focused backend and three browser checks passed. The synthetic
+three-combination journey independently expects 1,000 OOS passes in each row
+and verifies that repeat Run reuses the same child IDs. The live portal was
+refreshed after checking for active jobs. The stable launcher records its
+PID in `data/.portal-server.lock` for graceful termination when idle.
+
+[Live report IDs and path counts](evidence/prop-desk-automatic-oos/live-verification.json) ·
+[Optimise on mobile](evidence/prop-desk-automatic-oos/optimise-mobile.png) ·
+[Simulation on mobile](evidence/prop-desk-automatic-oos/simulation-mobile.png) ·
+[Synthetic evidence](evidence/prop-desk-automatic-oos/synthetic-oos.json)
+
+#### Full-grid Top 5 across strategy combinations and sizes (2026-11-28)
+
+**Full grid · Top 5** is the default Optimise allocation search. It scores
+every feasible whole-MNQ allocation under the declared range and minimum
+member count on the same 1,000 in-sample paths. The global ranking uses
+highest IS pass probability in Evaluation or highest IS payout probability
+in Funded. Exact ties favor the faster median outcome, then the smaller
+total MNQ and the saved candidate order. A strategy combination can appear
+multiple times at different contract allocations. The five shown rows get
+automatic OOS evidence. The combination picker still lists the complete grid
+by subset for inspection. **Individual MNQ · quick** retains the screened,
+one-winner-per-combination search.
+
+Full-grid admission allows up to 1,000 feasible allocations and up to 100,000
+allocation × observation sessions. The settings preview reports the exact
+workload before Run. Above either limit, narrow the range or raise the
+strategy minimum. Historical quick reports offer **Run full grid for Top 5**
+with their saved settings and keep their existing ranking and reports.
+
+1. Open `http://localhost:8000/#prop-desk?analysis=232dd2acadcd4a03bc71cb62179ab28c`.
+   Click **Run full grid for Top 5**. This reuses VWAP `1443ec1b`, Twin
+   `364df135`, LucidFlex 50K Evaluation, the 90-session horizon, sequential
+   MAE, and the 2–40 total MNQ range.
+2. Expect 858 allocations, comprising 39 sizes for each solo strategy and
+   780 positive splits of the two strategies. All should have exactly
+   1,000 paths. The five winners are from the same VWAP + Twin combination.
+
+| Rank | VWAP + Twin MNQ | IS pass | OOS pass |
+| --- | --- | ---: | ---: |
+| 1 | 2 + 2 | 49.3% | 41.1% |
+| 2 | 3 + 2 | 49.0% | 33.5% |
+| 3 | 4 + 2 | 47.6% | 31.3% |
+| 4 | 1 + 2 | 45.7% | 42.8% |
+| 5 | 5 + 2 | 45.1% | 29.6% |
+
+3. Open the [saved full-grid report](http://localhost:8000/#prop-desk?analysis=53908a17550e4a74ae10a495cbe459b6).
+   Use **Inspect allocation 5** to reopen its frozen allocation and chart.
+   All five OOS rates were reconciled to the 1,000 saved paths for each row.
+   The verification generated all contract vectors independently, sorted the
+   scores independently, and compared the common IS/OOS windows and earlier
+   full-path metrics. The sealed ranking stayed fixed during OOS.
+
+Nine focused backend and three browser checks passed. After checking for
+active jobs, the live portal was refreshed and verified on desktop and
+mobile. The stable launcher records the PID in `data/.portal-server.lock`
+for graceful termination when idle.
+
+[Live ranking and path counts](evidence/prop-desk-top-five/live-verification.json) ·
+[Desktop ranking](evidence/prop-desk-top-five/actual-top-five.png) ·
+[Mobile rank-five inspection](evidence/prop-desk-top-five/actual-mobile-inspection.png)

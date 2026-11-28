@@ -52,6 +52,7 @@ def test_recommendation_product_journey(page, portal, tmp_path, monkeypatch, des
                 page.set_viewport_size({'width':390, 'height':844})
             page.goto(root + '/#prop-desk?view=optimise')
             page.reload()
+            desk.get_by_label('Allocation search').select_option('individual')
             for member in members:
                 desk.locator(f'[data-source="{member["source_backtest_id"]}"]').get_by_role('button', name='Add').click()
             desk.get_by_label('Overlapping trades').select_option('sequential_mae')
@@ -245,3 +246,84 @@ def test_warm_four_strategy_search_timing_and_exact_comparator(portal, tmp_path,
                 else:
                     assert selected['metrics']['first_year_mean_receipts'] == earlier['metrics']['first_year_mean_receipts']
     (tmp_path / 'four-strategy-timing.json').write_text(json.dumps(bench, indent=2))
+
+
+def test_ranked_out_of_sample_assessments_finish_without_inspection(page, portal, tmp_path, desk_calculator_sources):
+    root = portal['url']
+    desk = page.locator('#prop-desk-screen')
+    with httpx.Client(base_url=root, timeout=90) as client:
+        _, members = normal_sources(client)
+        page.goto(root + '/#prop-desk?view=optimise')
+        desk.get_by_label('Allocation search').select_option('individual')
+        for member in members:
+            desk.locator(f'[data-source="{member["source_backtest_id"]}"]').get_by_role('button', name='Add').click()
+        desk.get_by_label('Overlapping trades').select_option('sequential_mae')
+        desk.get_by_label('Minimum total MNQ').fill('2')
+        desk.get_by_label('Maximum total MNQ').fill('3')
+        with page.expect_response('**/api/prop-desk/recommendations') as launched:
+            desk.get_by_role('button', name='Run Optimise').click()
+        assert launched.value.status == 202, launched.value.text()
+        id = launched.value.json()['id']
+        ranking = desk.get_by_role('region', name='Ranked strategy allocations').locator('tbody tr')
+        playwright.expect(ranking).to_have_count(3, timeout=45000)
+        parent = client.get(f'/api/prop-analyses/{id}/downloads/report.json').content
+        for i in range(3):
+            playwright.expect(ranking.nth(i).get_by_role('cell').nth(3)).to_have_text('100%', timeout=45000)
+        response = client.get(f'{API}/{id}/allocation-evidence')
+        assert response.is_success, response.text
+        evidence = response.json()['allocation_evidence']
+        assert set(evidence) == {r['candidate'] for r in json.loads(parent)['recommendation']['ranking']}
+        for row in evidence.values():
+            assert row['oos_metrics']['outcome_counts'] == dict(passed=1000, breached=0, provider_expired=0)
+        repeat = client.post(f'{API}/recommendations', json=launched.value.request.post_data_json)
+        assert repeat.status_code == 202 and repeat.json()['id'] == id
+        assert client.get(f'{API}/{id}/allocation-evidence').json()['allocation_evidence'] == evidence
+        assert client.get(f'/api/prop-analyses/{id}/downloads/report.json').content == parent
+        page.set_viewport_size({'width':390,'height':844})
+        page.reload()
+        playwright.expect(ranking.nth(2).get_by_role('cell').nth(3)).to_have_text('100%')
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.screenshot(path=tmp_path/'automatic-oos-mobile.png', full_page=True)
+        (tmp_path/'automatic-oos.json').write_text(json.dumps(evidence, indent=2))
+
+
+def test_exhaustive_top_five_combines_allocations_from_all_subsets(page, portal, tmp_path, desk_calculator_sources):
+    root = portal['url']
+    desk = page.locator('#prop-desk-screen')
+    with httpx.Client(base_url=root, timeout=90) as client:
+        _, members = normal_sources(client)
+        page.goto(root + '/#prop-desk?view=optimise')
+        for member in members:
+            desk.locator(f'[data-source="{member["source_backtest_id"]}"]').get_by_role('button', name='Add').click()
+        playwright.expect(desk.get_by_label('Allocation search')).to_have_value('global')
+        desk.get_by_label('Overlapping trades').select_option('sequential_mae')
+        desk.get_by_label('Minimum total MNQ').fill('2')
+        desk.get_by_label('Maximum total MNQ').fill('3')
+        playwright.expect(desk.locator('#prop-desk-workload')).to_have_text('7 feasible allocations · all scored on 1,000 paths')
+        with page.expect_response('**/api/prop-desk/recommendations') as launched:
+            desk.get_by_role('button', name='Run Optimise').click()
+        assert launched.value.status == 202, launched.value.text()
+        id = launched.value.json()['id']
+        parent = saved(client, id)['report']
+        report = parent['recommendation']
+        rows = [candidate for group in report['groups'] for candidate in group['candidates']]
+        assert len(rows) == 7 and all(row['paths'] == 1000 for row in rows)
+        assert {tuple(row['targets']) for row in report['groups'][2]['candidates']} == {(1, 1), (1, 2), (2, 1)}
+        expected = sorted(rows, key=lambda row: (-row['metrics']['probabilities']['passed'],
+            row['metrics']['median_trading_days_to_target'], sum(row['targets']), row['combination'], row['targets']))[:5]
+        ranking = report['ranking']
+        assert [row['candidate'] for row in ranking] == [row['id'] for row in expected]
+        assert len({row['combination'] for row in ranking}) < len(ranking) == 5
+        table = desk.get_by_role('region', name='Ranked strategy allocations').locator('tbody tr')
+        playwright.expect(table).to_have_count(5)
+        for row in table.all():
+            playwright.expect(row.get_by_role('cell').nth(3)).to_have_text('100%', timeout=30000)
+        assessments = client.get(f'{API}/{id}/allocation-evidence').json()['allocation_evidence']
+        assert set(assessments) == {row['candidate'] for row in ranking}
+        page.set_viewport_size({'width':390,'height':844})
+        page.reload()
+        table.nth(4).get_by_role('link', name='Inspect allocation 5').click()
+        playwright.expect(desk.get_by_role('heading', name='Equity')).to_be_visible()
+        child = saved(client, page.url.split('analysis=')[1].split('&')[0])['report']
+        assert child['configuration']['candidate_id'] == ranking[4]['candidate']
+        page.screenshot(path=tmp_path/'top-five-mobile-inspection.png', full_page=True)

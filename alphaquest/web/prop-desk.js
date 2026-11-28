@@ -31,6 +31,7 @@
   const compareOosAccounts = terms => get('include-oos-accounts').checked &&
     terms.members.some(member => member.oos_backtest_id);
   const newSearch = () => optimizing() && allocationSearch.value !== 'legacy';
+  const globalGrid = () => optimizing() && allocationSearch.value === 'global';
   const individualSimulation = terms => !optimizing() && terms.members.length > 1 && simulationAllocation.value === 'individual';
 
   const node = (tag, content, cls) => {
@@ -99,7 +100,7 @@
       message.textContent = `Use up to ${defaults.optimizer.recommendation_max_members} strategies for individual sizing.`;
       return false;
     }
-    if (fixed || (newSearch() && allocationSearch.value === 'individual')) {
+    if (fixed || (newSearch() && ['individual', 'global'].includes(allocationSearch.value))) {
       const lower = fixed ? Math.max(minimum_micros, max) : minimum_micros;
       const upper = maximum.value ? maximum_micros : Math.min(Number(maximum.max), lower + 4);
       maximum.placeholder = String(upper);
@@ -112,6 +113,13 @@
       let feasible = 0;
       for (let size = min; size <= max; size++) feasible += choose(max, size) *
         (choose(upper, size) - choose(Math.max(lower, size) - 1, size));
+      if (globalGrid() && feasible) {
+        const limits = defaults.optimizer;
+        const limit = Math.min(limits.global_max_allocations, Math.floor(limits.global_max_allocation_sessions / days));
+        message.textContent = feasible <= limit ? `${feasible.toLocaleString()} feasible allocations · all scored on ${defaults.paths.toLocaleString()} paths`
+          : `${feasible.toLocaleString()} feasible allocations · limit ${limit.toLocaleString()} at this horizon. Narrow the MNQ range or raise the strategy minimum.`;
+        return feasible <= limit;
+      }
       const method = feasible <= defaults.optimizer.recommendation_exact_limit ? 'exhaustive search'
         : feasible <= defaults.optimizer.recommendation_full_screen_limit ? 'all allocations screened' : 'bounded local search';
       message.textContent = feasible > 0 ? `${feasible.toLocaleString()} feasible allocations · ${method}`
@@ -237,9 +245,12 @@
     const basketFunded = !isFixed(terms) && phase.value === 'funded';
     const selectSizeRule = optimizing() && basketFunded;
     get('funded-size-label').hidden = fundedSizeRule.disabled = !selectSizeRule;
-    if (optimizing()) get('search-objective').textContent = phase.value === 'evaluation'
-      ? 'Test candidate subsets and rank them by in-sample pass probability.'
-      : 'Test candidate subsets and rank them by in-sample payout probability.';
+    if (optimizing()) {
+      const metric = phase.value === 'evaluation' ? 'pass probability' : 'payout probability';
+      get('search-objective').textContent = globalGrid()
+        ? `Rank the top five allocations across all combinations and sizes by IS ${metric}.`
+        : `Test candidate subsets and rank them by in-sample ${metric}.`;
+    }
     const minimumHorizon = basketFunded ? defaults.basket_first_year : 1;
     const nextHorizon = basketFunded ? (newSearch() && fundedSizeRule.value === 'account_life' ? defaults.basket_life_cutoff
       : optimizing() || simulationSizeRule.value === 'first_year' ||
@@ -316,7 +327,8 @@
       if (phase.value === 'funded') body.funded_size_rule = fundedSizeRule.value;
       if (newSearch()) {
         delete body.compare_accounts;
-        body.allocation_search = allocationSearch.value;
+        if (globalGrid()) body.full_grid = true;
+        body.allocation_search = globalGrid() ? 'individual' : allocationSearch.value;
         return {endpoint:'/recommendations', body};
       }
       return {endpoint:'/optimizer/subsets', body};
@@ -613,9 +625,12 @@
   function recommendation(panel, job) {
     const report = job.report;
     const result = report.recommendation;
-    const assessed = report.allocation_evidence || {};
+    let assessed = report.allocation_evidence || {};
+    let jobs = report.allocation_jobs || {};
     const funded = job.phase === 'funded';
     const fixed = report.configuration.fixed_basket === true;
+    const fullGrid = report.configuration.full_grid === true;
+    const groupRanking = result.group_ranking || result.ranking;
     const groups = new Map(result.groups.map(group => [group.id, group]));
     const candidates = new Map(result.groups.flatMap(group => group.candidates.map(row => [row.id, row])));
     const winner = result.ranking[0];
@@ -635,7 +650,8 @@
     panel.append(node('p', `${summary.tested.toLocaleString()} of ${summary.feasible.toLocaleString()} feasible allocations tested · ` +
       (summary.exhaustive ? 'Exhaustive' : 'Best tested') + ` · ${winner.path_count.toLocaleString()} paths per finalist`, 'field-help'),
       node('p', 'IS · ' + window.propDeskBasket.interval(result.is_days) + '. OOS applies the saved counts.', 'field-help'),
-      node('p', fixed ? (funded ? 'The selected basket is sized by IS mean trader receipts.'
+      node('p', fullGrid ? `Ranked by IS ${funded ? 'payout' : 'pass'} probability across every allocation. Exact ties favor faster median outcome, then fewer contracts.`
+        : fixed ? (funded ? 'The selected basket is sized by IS mean trader receipts.'
         : 'The selected basket is sized by IS pass probability.')
         : funded ? 'Select each subset’s allocation by mean trader receipts, then rank subsets by payout probability.'
           : 'Select by pass probability. Near ties at the top are ordered by median time to pass.', 'field-help'),
@@ -644,10 +660,41 @@
       `Every feasible allocation was tested. Screening used ${search.screening_paths} shared paths, with ${search.refinement_paths} for close contenders.`, 'field-help'));
     const state = node('p', undefined, 'field-help');
     state.setAttribute('role', 'status');
+    if (!fixed && !fullGrid) {
+      const upgrade = node('button', 'Run full grid for Top 5', 'button secondary');
+      upgrade.type = 'button';
+      upgrade.onclick = async () => {
+        upgrade.disabled = true;
+        state.textContent = 'Checking the saved sources and full-grid workload…';
+        const {size_rule, ...settings} = report.configuration;
+        try {
+          const next = await request('/api/prop-desk/recommendations', {...settings, allocation_search:'individual', full_grid:true});
+          if (panel.isConnected) location.hash = runUrl(next.id);
+        } catch (error) {
+          state.textContent = error.message;
+          upgrade.disabled = false;
+        }
+      };
+      panel.append(upgrade);
+    }
+    const oosProgress = node('p', undefined, 'field-help');
+    oosProgress.setAttribute('role', 'status');
+
+    const unsettled = status => ['queued', 'running'].includes(status);
+    function oosStatus(candidate) {
+      const row = candidates.get(candidate);
+      const linked = groups.get(row.combination).members.every(index => report.configuration.members[index].oos_backtest_id);
+      const status = jobs[candidate]?.status;
+      return assessed[candidate]?.unavailable || (!linked ? 'No linked OOS source'
+        : !result.oos_days.length ? 'No common OOS sessions'
+        : status === 'running' ? 'OOS running' : status === 'queued' ? 'OOS queued'
+        : status === 'error' ? 'OOS failed · open to retry' : 'Open size to assess');
+    }
 
     function inspect(candidateId, label) {
-      if (assessed[candidateId]?.id) {
-        const saved = link(label, runUrl(assessed[candidateId].id));
+      const available = assessed[candidateId]?.id || (unsettled(jobs[candidateId]?.status) ? jobs[candidateId].id : null);
+      if (available) {
+        const saved = link(label, runUrl(available));
         saved.className = 'button secondary';
         return saved;
       }
@@ -676,14 +723,7 @@
         link('Use in Portfolio setup', '#prop-sim?mode=portfolio&recommendation=' + job.id));
     };
     showWinner(report.winning_evidence);
-    if (!report.winning_evidence) setTimeout(async () => {
-      if (!panel.isConnected) return;
-      try {
-        const refreshed = await request('/api/prop-desk/' + job.id);
-        if (panel.isConnected && refreshed.report.winning_evidence) showWinner(refreshed.report.winning_evidence);
-      } catch { /* The inspection action can retry evidence on demand. */ }
-    }, 750);
-    frozen.append(winnerLink, state);
+    frozen.append(winnerLink, state, oosProgress);
 
     const region = node('div', undefined, 'prop-desk-ranking-scroll');
     region.setAttribute('role', 'region');
@@ -699,48 +739,53 @@
       heading.append(header);
     }
     const body = table.createTBody();
-    for (const entry of result.ranking) {
-      const candidate = candidates.get(entry.candidate);
-      const m = candidate.metrics;
-      const oos = assessed[entry.candidate]?.oos_metrics;
-      const rate = funded ? oos?.probability_any_payout : oos?.probabilities?.passed;
-      const row = body.insertRow();
-      for (const value of [entry.rank + (entry.near_best ? ' (within 1 SE)' : ''), describe(candidate), percent(entry.score),
-        rate == null ? '—' : percent(rate), funded ? money(entry.size_score) : percent(m.probabilities.breached),
-        (funded ? m.open_at_cutoff : entry.median_days) ?? '—']) row.insertCell().textContent = value;
-      row.insertCell().append(inspect(entry.candidate, 'Inspect allocation ' + entry.rank));
+    function drawCombinations() {
+      body.replaceChildren();
+      for (const entry of result.ranking) {
+        const candidate = candidates.get(entry.candidate);
+        const m = candidate.metrics;
+        const oos = assessed[entry.candidate]?.oos_metrics;
+        const rate = funded ? oos?.probability_any_payout : oos?.probabilities?.passed;
+        const row = body.insertRow();
+        for (const value of [entry.rank + (entry.near_best ? ' (within 1 SE)' : ''), describe(candidate), percent(entry.score),
+          rate == null ? oosStatus(entry.candidate) : percent(rate), funded ? money(entry.size_score) : percent(m.probabilities.breached),
+          (funded ? m.open_at_cutoff : entry.median_days) ?? '—']) row.insertCell().textContent = value;
+        row.insertCell().append(inspect(entry.candidate, 'Inspect allocation ' + entry.rank));
+      }
     }
+    drawCombinations();
     region.append(table);
-    if (!fixed) panel.append(region);
+    if (!fixed) {
+      if (fullGrid) panel.append(node('h2', 'Top 5 allocations'));
+      panel.append(region);
+    }
 
     const alternatives = node('section', undefined, 'panel prop-desk-panel prop-desk-size-results');
     const label = node('label', 'Strategy combination');
     const picker = node('select');
     const mode = report.configuration.size_rule;
     const ranked = window.propDeskBasket.sizeRanking(job.phase, mode);
-    for (const entry of result.ranking) {
+    for (const entry of groupRanking) {
       const group = groups.get(entry.combination);
       const names = group.members.map(index => `${human(result.members[index].strategy)} ${report.configuration.members[index].source_backtest_id.slice(0, 8)}`);
       picker.add(new Option(names.join(' + '), String(group.id)));
     }
     const locationParams = new URLSearchParams(location.hash.split('?')[1] || '');
-    if (result.ranking.some(entry => String(entry.combination) === locationParams.get('sizing')))
-      picker.value = locationParams.get('sizing');
+    picker.value = groupRanking.some(entry => String(entry.combination) === locationParams.get('sizing'))
+      ? locationParams.get('sizing') : String(winner.combination);
     label.append(picker);
     function drawAllocations() {
       const group = groups.get(Number(picker.value));
-      const selected = result.ranking.find(entry => entry.combination === group.id);
+      const selected = groupRanking.find(entry => entry.combination === group.id);
       const score = row => funded ? row.metrics.mean_trader_receipts : row.metrics.probabilities.passed;
       const day = row => row.metrics.median_trading_days_to_target ?? Infinity;
       const ordered = [...group.candidates].sort((a, b) => b.paths - a.paths || score(b) - score(a) ||
         a.tested_total - b.tested_total || (funded ? 0 : day(a) - day(b)) || a.id.localeCompare(b.id, undefined, {numeric:true}));
       let rank = 0;
-      const linked = group.members.every(index => report.configuration.members[index].oos_backtest_id);
       ranked.show(ordered.map(row => ({id:row.id, rank:row.paths === selected.path_count ? ++rank : 'Screen',
         total:row.tested_total, targets:row.targets, paths:row.paths, is:row.metrics, oos:assessed[row.id]?.oos_metrics,
         note:row.id === selected.candidate ? 'Chosen for this combination' : undefined,
-        oosStatus:assessed[row.id]?.unavailable || (!linked ? 'No linked OOS source'
-          : !result.oos_days.length ? 'No common OOS sessions' : 'Open size to assess'),
+        oosStatus:oosStatus(row.id),
         action:inspect(row.id, `Inspect ${row.targets.join(' + ')} MNQ`)})));
     }
     picker.onchange = () => {
@@ -756,10 +801,37 @@
     alternatives.append(node('p', rankingScope + (funded
       ? `mean receipts · ${mode === 'account_life' ? 'Account life' : 'First year'}.`
       : 'pass probability.'), 'field-help'),
-      node('p', 'Screened rows show their path counts. Opening a size assesses OOS when linked sources are available.', 'field-help'), ranked.region);
+      node('p', fixed ? 'OOS runs automatically for ranked sizes with linked sources. Screened sizes can be assessed on inspection.'
+        : fullGrid ? 'OOS runs automatically for the Top 5. Open any other size to assess it.'
+          : 'OOS runs automatically at each combination’s ranked size. Other sizes can be assessed on inspection.', 'field-help'), ranked.region);
     panel.append(alternatives);
     const unavailable = result.groups.filter(group => group.unavailable);
     if (unavailable.length) panel.append(node('p', `${unavailable.length} subsets had no positive allocation in the declared range.`, 'field-help'));
+
+    function showProgress() {
+      const active = Object.values(jobs).filter(job => unsettled(job.status)).length;
+      oosProgress.textContent = active ? `${active} allocation ${active === 1 ? 'assessment' : 'assessments'} running or queued.` : '';
+      return active;
+    }
+    async function refreshEvidence() {
+      if (!panel.isConnected) return;
+      try {
+        const latest = await request(`/api/prop-desk/${job.id}/allocation-evidence`);
+        if (!panel.isConnected) return;
+        if (JSON.stringify(latest.allocation_jobs) !== JSON.stringify(jobs) ||
+            JSON.stringify(latest.allocation_evidence) !== JSON.stringify(assessed)) {
+          jobs = latest.allocation_jobs;
+          assessed = latest.allocation_evidence;
+          showWinner(latest.winning_evidence);
+          drawCombinations();
+          drawAllocations();
+        }
+      } catch { /* Rows can still open their assessment directly. */ }
+      if (showProgress()) setTimeout(refreshEvidence, 1000);
+    }
+    const pending = showProgress();
+    if (pending || !report.winning_evidence || result.ranking.some(row => !jobs[row.candidate]))
+      setTimeout(refreshEvidence, 750);
   }
 
   function renderJob(job) {

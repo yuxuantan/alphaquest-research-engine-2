@@ -1,0 +1,68 @@
+{
+  "2-2": {
+    "id": "022a67728c8e48afb457c4dce8f468df",
+    "oos_metrics": {
+      "median_trading_days_to_target": 6.0,
+      "outcome_counts": {
+        "breached": 0,
+        "passed": 1000,
+        "provider_expired": 0
+      },
+      "pass_rate_interval_95": [
+        0.9961731014136095,
+        1.0
+      ],
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.0,
+        "passed": 1.0,
+        "provider_expired": 0.0
+      }
+    },
+    "unavailable": null
+  },
+  "3-1-1": {
+    "id": "6c3b4c210b134dd09abc1c993c53ce2f",
+    "oos_metrics": {
+      "median_trading_days_to_target": 5.0,
+      "outcome_counts": {
+        "breached": 0,
+        "passed": 1000,
+        "provider_expired": 0
+      },
+      "pass_rate_interval_95": [
+        0.9961731014136095,
+        1.0
+      ],
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.0,
+        "passed": 1.0,
+        "provider_expired": 0.0
+      }
+    },
+    "unavailable": null
+  },
+  "1-2": {
+    "id": "8c88b087b37a40d08261fc559c7b3224",
+    "oos_metrics": {
+      "median_trading_days_to_target": 4.0,
+      "outcome_counts": {
+        "breached": 0,
+        "passed": 1000,
+        "provider_expired": 0
+      },
+      "pass_rate_interval_95": [
+        0.9961731014136095,
+        1.0
+      ],
+      "path_count": 1000,
+      "probabilities": {
+        "breached": 0.0,
+        "passed": 1.0,
+        "provider_expired": 0.0
+      }
+    },
+    "unavailable": null
+  }
+}

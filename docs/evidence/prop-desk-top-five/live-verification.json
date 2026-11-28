@@ -1,0 +1,90 @@
+{
+  "original": "232dd2acadcd4a03bc71cb62179ab28c",
+  "global_report": "53908a17550e4a74ae10a495cbe459b6",
+  "sealed_sha256": "b60ace5a926b1dd30123b986619ebe9fe5d79f5f50bda772b985cfa9df302cea",
+  "allocations": 858,
+  "matched_existing_full_path_allocations": 6,
+  "is_scoring_seconds": 2.4535979999927804,
+  "ranking": [
+    {
+      "rank": 1,
+      "candidate": "3-2-2",
+      "targets": [
+        2,
+        2
+      ],
+      "is_pass": 0.493,
+      "oos_pass": 0.411,
+      "oos_counts": {
+        "breached": 580,
+        "observation_cutoff": 9,
+        "passed": 411
+      },
+      "child": "685b7b7607b447688eac657698a98ba4"
+    },
+    {
+      "rank": 2,
+      "candidate": "3-3-2",
+      "targets": [
+        3,
+        2
+      ],
+      "is_pass": 0.49,
+      "oos_pass": 0.335,
+      "oos_counts": {
+        "breached": 664,
+        "observation_cutoff": 1,
+        "passed": 335
+      },
+      "child": "e6e4bc098bf743c392ca6a2184ae45ce"
+    },
+    {
+      "rank": 3,
+      "candidate": "3-4-2",
+      "targets": [
+        4,
+        2
+      ],
+      "is_pass": 0.476,
+      "oos_pass": 0.313,
+      "oos_counts": {
+        "breached": 686,
+        "observation_cutoff": 1,
+        "passed": 313
+      },
+      "child": "825393388750450bb5acb28c1c78ed3c"
+    },
+    {
+      "rank": 4,
+      "candidate": "3-1-2",
+      "targets": [
+        1,
+        2
+      ],
+      "is_pass": 0.457,
+      "oos_pass": 0.428,
+      "oos_counts": {
+        "breached": 563,
+        "observation_cutoff": 9,
+        "passed": 428
+      },
+      "child": "96810c86ca9a42008813bf0e25b7243d"
+    },
+    {
+      "rank": 5,
+      "candidate": "3-5-2",
+      "targets": [
+        5,
+        2
+      ],
+      "is_pass": 0.451,
+      "oos_pass": 0.296,
+      "oos_counts": {
+        "breached": 704,
+        "observation_cutoff": 0,
+        "passed": 296
+      },
+      "child": "8b8065bf7ac04eca9ef048bd1e6a3a56"
+    }
+  ]
+}

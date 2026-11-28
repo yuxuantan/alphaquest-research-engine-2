@@ -1,0 +1,72 @@
+{
+  "optimise": {
+    "parent": "a94fdae4301144388550a886bdeadb72",
+    "parent_sha256": "63034cd9d8382749c8606ef66cd50a0e2ddc5f426f1e8335e6b0436da95dc1ec",
+    "medians": [
+      31,
+      46.0,
+      55
+    ],
+    "assessments": {
+      "1-3": {
+        "child": "ab2735af1fa141c68e83ea5c3104ba68",
+        "counts": {
+          "breached": 671,
+          "observation_cutoff": 210,
+          "passed": 119
+        }
+      },
+      "3-1-2": {
+        "child": "012c23eeebb04a30ae8708c06269dabd",
+        "counts": {
+          "breached": 558,
+          "observation_cutoff": 26,
+          "passed": 416
+        }
+      },
+      "2-3": {
+        "child": "988aa3229e8440788feb9929010d45a0",
+        "counts": {
+          "breached": 649,
+          "observation_cutoff": 7,
+          "passed": 344
+        }
+      }
+    },
+    "seconds_to_complete": 3.81
+  },
+  "simulation": {
+    "parent": "52db8e6015e24257923c0001374d8de7",
+    "parent_sha256": "cd72cea07df412a907bb74e84790a55ea44e1d5fc7038d1e656e01032c84d2c6",
+    "medians": [
+      46.0
+    ],
+    "assessments": {
+      "1-2-1": {
+        "child": "c99c8750fe34497285fa30bb5585d2b9",
+        "counts": {
+          "breached": 434,
+          "observation_cutoff": 204,
+          "passed": 362
+        }
+      },
+      "1-1-1": {
+        "child": "55cdf189dea0420683eacd6471dc52bf",
+        "counts": {
+          "breached": 280,
+          "observation_cutoff": 430,
+          "passed": 290
+        }
+      },
+      "1-1-2": {
+        "child": "def137e89fa549109b3edea086f4cf24",
+        "counts": {
+          "breached": 558,
+          "observation_cutoff": 26,
+          "passed": 416
+        }
+      }
+    },
+    "seconds_to_complete": 3.84
+  }
+}

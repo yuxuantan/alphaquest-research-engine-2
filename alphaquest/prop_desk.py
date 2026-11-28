@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 from pydantic import model_validator
 from starlette.concurrency import run_in_threadpool
 
-from .prop import (desk, desk_basket, desk_diagnostics, desk_oos, desk_optimizer, desk_overlap,
+from .prop import (desk, desk_basket, desk_diagnostics, desk_global_ranking, desk_oos, desk_optimizer, desk_overlap,
                    desk_parity, desk_recommendation, desk_subset_optimizer)
 from .prop.adapter import canonical, source_record
 from .prop.phase_profiles import profile_settings
@@ -182,6 +182,7 @@ class RecommendationLaunch(BasketConfiguration):
     allocation_search: Literal['individual', 'weighted'] = 'individual'
     funded_size_rule: Literal['first_year', 'account_life'] | None = None
     fixed_basket: StrictBool = False
+    full_grid: StrictBool = False
 
     def resolved(self):
         if self.minimum_members > len(self.members) or self.minimum_members > self.maximum_micros:
@@ -190,6 +191,8 @@ class RecommendationLaunch(BasketConfiguration):
             raise ValueError('Funded sizing presets apply only to Funded searches.')
         if self.fixed_basket and (self.minimum_members != len(self.members) or self.allocation_search != 'individual'):
             raise ValueError('Individual Simulation sizing must use every selected strategy.')
+        if self.full_grid and (self.fixed_basket or self.allocation_search != 'individual'):
+            raise ValueError('Full-grid Top 5 requires individual sizing in Optimise.')
         if self.phase == 'funded' and self.observation_sessions is None:
             horizon = 2000 if self.funded_size_rule == 'account_life' else desk_basket.FIRST_YEAR
             configuration = BasketConfiguration.resolved(self.model_copy(update={'observation_sessions': horizon}))
@@ -201,6 +204,10 @@ class RecommendationLaunch(BasketConfiguration):
             desk_optimizer.workload(len(self.members), self.minimum_members, len(self.members), self.minimum_micros,
                                    self.maximum_micros, configuration['observation_sessions'])
         configuration['size_rule'] = 'optimal' if self.phase == 'evaluation' else self.funded_size_rule or 'first_year'
+        if self.full_grid:
+            desk_global_ranking.workload(configuration)
+        else:
+            del configuration['full_grid']
         return configuration
 
 
@@ -212,7 +219,8 @@ class RecommendationEvidenceLaunch(BaseModel):
 
 def prepare(runs, analyses, body, configuration, datasets):
     if isinstance(body, RecommendationLaunch):
-        return desk_recommendation.prepare(runs, datasets, analyses, body, configuration)
+        owner = desk_global_ranking if body.full_grid else desk_recommendation
+        return owner.prepare(runs, datasets, analyses, body, configuration)
     if isinstance(body, SubsetOptimizerLaunch) and body.compare_accounts:
         return desk_parity.prepare(runs, datasets, analyses, body, configuration, search=True)
     if isinstance(body, BasketLaunch) and body.simulation_size_rule is not None:
@@ -315,8 +323,11 @@ def launch(runs, analyses, body, datasets):
         key = f'{desk.REQUEST_PREFIX}{body.phase}:{mode}{checked["identity"]}'
         refs = ({s['backtest']['id'] for group in checked['snapshots'].values() for s in group}
                 if basket else {body.source_backtest_id})
-        return enqueue(analyses, key, body.source_backtest_id, refs, body.phase.title(), run,
-                       (runs, body, configuration, checked, datasets, dataset))
+        job = enqueue(analyses, key, body.source_backtest_id, refs, body.phase.title(), run,
+                      (runs, body, configuration, checked, datasets, dataset))
+        if isinstance(body, RecommendationLaunch) and job['status'] == 'complete':
+            queue_ranked_evidence(runs, analyses, datasets, job['id'], checked, dataset)
+        return job
 
 
 def enqueue(analyses, key, source, refs, label, worker, args, *, strict_seal=False):
@@ -369,14 +380,8 @@ def run(analyses, id, runs, body, configuration, prepared, datasets, dataset):
         analyses._update(id, 'error', 'Prop Desk simulation failed', str(exc))
         return
     if recommendation:
-        try:
-            winner = report['recommendation']['ranking'][0]['candidate']
-            with analyses.lock:
-                parent, sha = diagnostic_parent(analyses, id)
-                enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, winner, prepared, dataset)
-        except (OSError, ValueError, KeyError, ResearchConflict):
-            # The saved IS report is already usable. Evidence can be queued from it again.
-            return
+        with analyses.lock:
+            queue_ranked_evidence(runs, analyses, datasets, id, prepared, dataset)
 
 
 def publish(analyses, id, staged, report):
@@ -412,7 +417,8 @@ def diagnostic_parent(analyses, id):
 
 def recommendation_report(runs, analyses, id, body, configuration, prepared, staged):
     started = perf_counter()
-    result, rules, seeds = desk_recommendation.calculate(
+    owner = desk_global_ranking if body.full_grid else desk_recommendation
+    result, rules, seeds = owner.calculate(
         prepared, configuration, lambda message: analyses._update(id, 'running', message))
     desk_basket.verify(runs, prepared)
     timing = prepared['launch_timing']
@@ -420,7 +426,7 @@ def recommendation_report(runs, analyses, id, body, configuration, prepared, sta
         worker_and_recheck_seconds=started - timing['queued_at'], is_seconds=perf_counter() - started)
     snapshots = prepared['snapshots']
     result['members'] = [source_summary(snapshot) for snapshot in snapshots['is']]
-    return dict(format_version=1, model_version=desk_recommendation.VERSION, phase=body.phase,
+    return dict(format_version=1, model_version=owner.VERSION, phase=body.phase,
                 settings=dict(ANALYSIS_MODE='prop_desk_recommendation'), configuration=configuration,
                 profile_label=desk.PROFILES[body.profile_id]['label'],
                 source=snapshots['is'][0], source_summary=source_summary(snapshots['is'][0]),
@@ -431,6 +437,39 @@ def recommendation_report(runs, analyses, id, body, configuration, prepared, sta
 def recommendation_evidence_key(parent, sha, candidate_id):
     key = digest((desk_recommendation.DETAIL_VERSION, parent['id'], sha, candidate_id))
     return f'{desk.REQUEST_PREFIX}{parent["phase"]}:recommendation-evidence:{key}'
+
+
+def automatic_oos_candidates(parent):
+    search = parent['recommendation']
+    if not search['oos_days']:
+        return []
+    configuration = parent['configuration']
+    groups = {group['id']: group for group in search['groups']}
+    candidates = []
+    for entry in search['ranking']:
+        group = groups[entry['combination']]
+        if not all(configuration['members'][i]['oos_backtest_id'] for i in group['members']):
+            continue
+        candidates.append(entry['candidate'])
+        if configuration.get('fixed_basket'):
+            candidates.extend(row['id'] for row in group['candidates']
+                              if row['paths'] == entry['path_count'] and row['id'] != entry['candidate'])
+    return candidates
+
+
+def queue_ranked_evidence(runs, analyses, datasets, id, prepared, dataset):
+    """Queue frozen evidence from the same verified preparation as the parent."""
+    try:
+        parent, sha = diagnostic_parent(analyses, id)
+    except (OSError, ValueError, KeyError, ResearchConflict):
+        return
+    winner = parent['recommendation']['ranking'][0]['candidate']
+    for candidate in dict.fromkeys([winner, *automatic_oos_candidates(parent)]):
+        try:
+            enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, candidate, prepared, dataset)
+        except (OSError, ValueError, KeyError, ResearchConflict):
+            # Keep other ranked assessments available if one saved artifact is invalid.
+            continue
 
 
 def recommendation_listing(analyses, parent, sha):
@@ -445,11 +484,11 @@ def recommendation_listing(analyses, parent, sha):
         rows = db.execute(f'''SELECT a.*, c.payload AS checks FROM analyses a
             LEFT JOIN analysis_report_checks c ON c.id=a.id
             WHERE a.request_hash IN ({placeholders}) ORDER BY a.created DESC''', tuple(keys)).fetchall()
-    assessed, winning = {}, None
+    assessed, jobs = {}, {}
     for row in rows:
         candidate = keys[row['request_hash']]
-        if candidate == winner and winning is None:
-            winning = public_job(row)
+        if candidate not in jobs:
+            jobs[candidate] = public_job(row)
         if row['status'] != 'complete' or candidate in assessed:
             continue
         try:
@@ -466,7 +505,7 @@ def recommendation_listing(analyses, parent, sha):
             continue
         assessed[candidate] = dict(id=row['id'], oos_metrics=pair.get('oos_metrics'),
                                    unavailable=pair.get('unavailable'))
-    return assessed, winning
+    return dict(allocation_evidence=assessed, allocation_jobs=jobs, winning_evidence=jobs.get(winner))
 
 
 def enqueue_recommendation_evidence(runs, analyses, datasets, parent, sha, candidate_id, prepared, dataset):
@@ -491,11 +530,11 @@ def launch_recommendation_evidence(runs, analyses, body, datasets):
                 diagnostic_parent(analyses, saved[0])
                 return public_job(analyses.get(saved[0]))
             raise ResearchConflict('Run Optimise again to generate new allocation evidence for this earlier search.')
-    if parent['model_version'] != desk_recommendation.VERSION:
+    if parent['model_version'] not in (desk_recommendation.VERSION, desk_global_ranking.VERSION):
         raise ValueError('Open a saved strategy recommendation to inspect its allocation.')
     configuration = parent['configuration']
     declaration = RecommendationLaunch.model_validate({k: v for k, v in configuration.items() if k != 'size_rule'})
-    prepared = desk_recommendation.prepare(runs, datasets, analyses, declaration, configuration)
+    prepared = prepare(runs, analyses, declaration, configuration, datasets)
     if prepared['identity'] != parent['provenance']['search_source_sha256']:
         raise ResearchConflict('Verified sources or calculation settings differ from the saved recommendation.')
     dataset_id = prepared['snapshots']['is'][0]['backtest']['run_metadata']['dataset']['id']
@@ -785,7 +824,9 @@ def defaults():
                 optimizer=dict(max_pairs=desk_optimizer.MAX_PAIRS, max_pair_sessions=desk_optimizer.MAX_PAIR_SESSIONS,
                                recommendation_max_members=desk_recommendation.MAX_MEMBERS,
                                recommendation_exact_limit=desk_recommendation.EXACT_LIMIT,
-                               recommendation_full_screen_limit=desk_recommendation.FULL_SCREEN_LIMIT))
+                               recommendation_full_screen_limit=desk_recommendation.FULL_SCREEN_LIMIT,
+                               global_max_allocations=desk_global_ranking.MAX_ALLOCATIONS,
+                               global_max_allocation_sessions=desk_global_ranking.MAX_ALLOCATION_SESSIONS))
 
 
 def catalogue_page(runs, candidates, offset, limit):
@@ -883,6 +924,19 @@ def history(request: Request, offset: int = Query(0, ge=0), limit: int = Query(2
     return dict(items=[public_job(row) for row in rows[:limit]], has_more=len(rows) > limit)
 
 
+@router.get('/{id}/allocation-evidence')
+def get_allocation_evidence(id: UUID, request: Request):
+    analyses = request.app.state.prop_analyses
+    with analyses.lock:
+        try:
+            report, sha = diagnostic_parent(analyses, id.hex)
+        except (OSError, ValueError, KeyError, ResearchConflict) as exc:
+            raise HTTPException(409, str(exc)) from exc
+        if 'recommendation' not in report:
+            raise HTTPException(404, 'Saved strategy recommendation not found.')
+        return recommendation_listing(analyses, report, sha)
+
+
 @router.get('/{id}')
 def get(id: UUID, request: Request):
     analyses = request.app.state.prop_analyses
@@ -913,8 +967,7 @@ def get(id: UUID, request: Request):
             if 'recommendation' in report:
                 result['report']['recommendation'] = report['recommendation']
                 sha = sha256((analyses.root / id.hex / 'report.json').read_bytes()).hexdigest()
-                assessed, winner = recommendation_listing(analyses, report, sha)
-                result['report'].update(allocation_evidence=assessed, winning_evidence=winner)
+                result['report'].update(recommendation_listing(analyses, report, sha))
             if 'optimizer' in report:
                 result['report']['optimizer'] = report['optimizer']
                 if report['model_version'] != desk_overlap.version(desk_parity.SEARCH_VERSION, report['configuration']):
